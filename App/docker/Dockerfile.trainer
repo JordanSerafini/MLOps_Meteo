@@ -1,0 +1,12 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+COPY requirements/trainer.txt .
+RUN pip install --no-cache-dir -r trainer.txt
+
+COPY src/ ./src/
+
+# Job one-shot : entraîne le RandomForest et l'enregistre au registry par défaut.
+ENTRYPOINT ["python", "-m", "src.train"]
+CMD ["--model", "rf", "--register"]
