@@ -49,4 +49,5 @@ class WeatherFeatures(BaseModel):
 class PredictionOut(BaseModel):
     rain_tomorrow: bool
     probability: float = Field(description="probabilité de pluie demain [0-1]")
+    threshold: float = Field(default=0.5, description="seuil de décision appliqué")
     model_version: Optional[str] = None

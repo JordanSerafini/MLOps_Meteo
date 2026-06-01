@@ -66,6 +66,7 @@ def health():
         "model_loaded": _state["model"] is not None,
         "model_version": _state["version"],
         "model_uri": config.MODEL_URI,
+        "decision_threshold": config.DECISION_THRESHOLD,
     }
 
 
@@ -89,8 +90,9 @@ def predict(features: WeatherFeatures):
     # reindex sur les colonnes vues à l'entraînement ; champs manquants -> NaN -> imputés
     df = pd.DataFrame([features.model_dump()]).reindex(columns=list(model.feature_names_in_))
     proba = float(model.predict_proba(df)[0, 1])
-    rain = bool(proba >= 0.5)
+    rain = bool(proba >= config.DECISION_THRESHOLD)
     PRED_COUNTER.labels(outcome="rain" if rain else "norain").inc()
     PROBA_HIST.observe(proba)
     return PredictionOut(rain_tomorrow=rain, probability=round(proba, 4),
+                         threshold=config.DECISION_THRESHOLD,
                          model_version=_state["version"])
