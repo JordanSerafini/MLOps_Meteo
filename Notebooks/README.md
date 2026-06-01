@@ -1,24 +1,30 @@
 # Notebooks
 
-Le projet est découpé en 3 notebooks indépendants (chacun s'exécute seul) :
+Projet découpé en 3 notebooks indépendants (chacun s'exécute seul) :
 
-1. **`01_exploration.ipynb`** — chargement + EDA (qualité des données, cible & déséquilibre, baselines, corrélations, géo/saison)
-2. **`02_preprocessing.ipynb`** — préparation des données (feature `Month`, `ColumnTransformer` anti-fuite, encodage)
-3. **`03_modelisation.ipynb`** — Régression Logistique, Random Forest (+ `balanced`), comparatif, conclusions
+1. **Exploration (EDA)** — qualité des données, cible & déséquilibre, baselines, corrélations, géo/saison
+2. **Préparation** — feature `Month`, `ColumnTransformer` anti-fuite, encodage
+3. **Modélisation** — Régression Logistique, Random Forest (+ `balanced`), comparatif, conclusions
 
-## Deux variantes de chaque notebook
+## ⚠️ Lire les notebooks (le rendu `.ipynb` de GitHub est défaillant)
 
-| Dossier | Sorties | Usage |
+Le viewer Jupyter de GitHub échoue régulièrement (« An error occurred ») même sur des notebooks valides et légers — c'est un **bug de leur moteur de rendu**, pas des fichiers (vérifié : ils se rendent correctement avec les versions exactes de nbformat/nbconvert de GitHub). Pour lire le contenu **avec les résultats**, au choix :
+
+| Méthode | Lien / chemin | Fiabilité |
 |---|---|---|
-| **`clean/`** | **purgées** (code + markdown) | ✅ s'ouvrent de façon fiable **sur GitHub** (légers) |
-| racine `Notebooks/` | **exécutées** (graphiques + scores inline) | résultats visibles — voir en local ou via **nbviewer** |
+| **Markdown** (rendu GitHub natif) | [`md/01_exploration.md`](md/01_exploration.md) · [`md/02_preprocessing.md`](md/02_preprocessing.md) · [`md/03_modelisation.md`](md/03_modelisation.md) | ✅ **infaillible** (GitHub rend toujours le `.md`) |
+| **Google Colab** (lecture + exécution) | `https://colab.research.google.com/github/JordanSerafini/MlOps_Meteo/blob/master/Notebooks/01_exploration.ipynb` | ✅ très fiable |
+| **nbviewer** | `https://nbviewer.org/github/JordanSerafini/MlOps_Meteo/blob/master/Notebooks/01_exploration.ipynb` | ⚠️ parfois surchargé |
 
-> GitHub échoue parfois à rendre les notebooks lourds (« An error occurred ») — c'est un souci de leur moteur de rendu, pas du fichier. Pour voir les **résultats** sans lancer le code :
->
-> **nbviewer** (rendu fiable depuis ce repo) :
-> `https://nbviewer.org/github/JordanSerafini/MlOps_Meteo/blob/master/Notebooks/01_exploration.ipynb`
-> (idem `02_preprocessing.ipynb`, `03_modelisation.ipynb`)
+(remplacer `01_exploration` par `02_preprocessing` / `03_modelisation`)
 
-Les analyses rédigées (chiffres + interprétations) sont aussi dans `Analyses/EDA_Analyse_Donnees.md`.
+## Fichiers
 
-Le notebook Colab d'origine est conservé tel quel comme référence : `ORIGINAL_Analyse_et_Modélisation_du_Précipitations_en_Australie.ipynb`.
+| Chemin | Contenu |
+|---|---|
+| `01_*.ipynb` `02_*.ipynb` `03_*.ipynb` | notebooks **exécutés** (graphiques + scores inline) |
+| `md/*.md` (+ `*_files/`) | export **Markdown** — **à privilégier pour lire sur GitHub** |
+| `clean/*.ipynb` | notebooks **sans sorties** (légers) |
+| `ORIGINAL_…Australie.ipynb` | notebook Colab d'origine (référence, intact) |
+
+Les analyses rédigées (chiffres + interprétations) sont aussi dans `../Analyses/EDA_Analyse_Donnees.md`.
