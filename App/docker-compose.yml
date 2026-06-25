@@ -1,0 +1,86 @@
+name: meteo-liora
+
+services:
+  # --- Tracking + Model Registry (backend SQLite, artefacts servis par le serveur) ---
+  mlflow:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.mlflow
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow-data:/mlflow
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks: [mlops]
+
+  # --- Job d'entraînement (one-shot) : `docker compose --profile train run --rm trainer` ---
+  trainer:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.trainer
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      DATA_PATH: /data/weatherAUS.csv
+    volumes:
+      - ../Data:/data:ro
+    depends_on:
+      mlflow:
+        condition: service_healthy
+    profiles: ["train"]
+    networks: [mlops]
+
+  # --- API d'inférence ---
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      MODEL_URI: models:/rain-australia@champion
+      DECISION_THRESHOLD: "${DECISION_THRESHOLD:-0.5}"
+    ports:
+      - "8000:8000"
+    depends_on:
+      mlflow:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks: [mlops]
+
+  # --- Site de display / démo ---
+  streamlit:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.streamlit
+    environment:
+      API_URL: http://api:8000
+    ports:
+      - "8501:8501"
+    depends_on:
+      - api
+    networks: [mlops]
+
+  # --- Monitoring
+  # prometheus:
+  #   image: prom/prometheus:v2.54.1
+  #   ports: ["9090:9090"]
+  #   volumes:
+  #     - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+  #     - prom-data:/prometheus
+  #   depends_on: [api]
+  #   networks: [mlops]
+
+networks:
+  mlops:
+    driver: bridge
+
+volumes:
+  mlflow-data:
+  # prom-data:

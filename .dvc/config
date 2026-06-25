@@ -1,0 +1,6 @@
+[core]
+    remote = dagshub
+['remote "localremote"']
+    url = ../dvc-storage
+['remote "dagshub"']
+    url = https://dagshub.com/JordanSerafini/MlOps_Meteo.dvc

@@ -1,0 +1,43 @@
+# --- Perso (local only) ---
+/Perso
+
+# --- Environnements virtuels ---
+.venv/
+venv/
+env/
+venv-*/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- MLflow (exécution locale hors conteneur) ---
+mlruns/
+mlflow.db
+*.mlflow
+# exception : le Dockerfile matche *.mlflow par accident
+!App/docker/Dockerfile.mlflow
+
+# --- Modèles / artefacts locaux (le runtime vit dans MLflow Registry) ---
+*.pkl
+*.joblib
+
+# --- DVC ---
+# .dvc/cache et .dvc/tmp sont déjà ignorés par `dvc init` (.dvc/.gitignore).
+# Le CSV de données est ignoré par DVC via Data/.gitignore après `dvc add`.
+# Remote DVC local (si on l'héberge dans le repo) :
+/dvc-storage/
+
+# --- Docker ---
+# (rien à ignorer : compose/Dockerfiles sont versionnés)
+
+# --- OS / éditeurs ---
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.*.kate-swp

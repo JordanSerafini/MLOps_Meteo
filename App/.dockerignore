@@ -1,0 +1,21 @@
+# Contexte de build = App/ (les dossiers racine Data/, Notebooks/, Perso/...
+# sont HORS contexte, inutile de les lister ici).
+
+# Caches Python
+**/__pycache__/
+*.py[cod]
+
+# Inutile dans les images (lu par le builder ou monté en volume, pas baké)
+docker-compose.yml
+.dockerignore
+monitoring/
+
+# Tests / lint
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Divers
+*.md
+.DS_Store
+*.swp

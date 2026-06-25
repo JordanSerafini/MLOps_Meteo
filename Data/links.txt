@@ -1,0 +1,10 @@
+
+Bibliography:
+
+Observations come from many weather stations. Daily observations are available at: http://www.bom.gov.au/climate/data.
+
+An example of the latest weather observations in Canberra: http://www.bom.gov.au/climate/dwo/IDCJDW2801.latest.shtml
+
+Definitions adapted from http://www.bom.gov.au/climate/dwo/IDCJDW0000.shtml
+
+Data source: http://www.bom.gov.au/climate/dwo/ and http://www.bom.gov.au/climate/data.

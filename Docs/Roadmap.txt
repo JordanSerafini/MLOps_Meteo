@@ -1,0 +1,56 @@
+ 
+Phase 1 : Fondations & Conteneurisation
+Deadline : 10 Avril
+
+Définir les objectifs / Cadrage du projet et les indicateurs clés (metrics)
+Mettre en place un environnement de développement reproductible (Venv, requirements, etc.)
+Processus de collecte et de traitement des données. (collect.py, process.py, etc.)
+Processus d'entraînement et évaluation du modèle. (train.py, evaluate.py, etc.)
+Mettre en œuvre une API d'inférence de base.
+
+
+
+
+
+
+Phase 2 : Microservices, Tracking & Versionnement
+Date limite : 5 juin
+
+Mettre en place le suivi des expériences avec MLflow.
+Implémenter le versionnement des données et des modèles.
+Décomposer l'application en micro-services et concevoir une orchestration simple. (Docker compose)
+
+
+
+
+
+
+Phase 3 : Orchestration & Déploiement
+Date limite : 3 juillet
+
+Finaliser l'orchestration de bout en bout (Training pipepline, Airflow, etc.)
+Créer la pipeline CI (Intégration Continue, tests unitaires)
+Optimiser et sécuriser l'API (en utilisant NGINX par exemple)
+Mettre en œuvre de la scalabilité avec Docker/Kubernetes
+
+
+
+
+
+
+Phase 4 : Monitoring & Maintenance
+
+Date limite : 28 août
+Monitoring et suivi des performances avec Prometheus/Grafana.
+Implémenter la détection de dérive (drift detection) avec Evidently.
+Développer les pipelines de mises à jour automatisées du modèle et des composants.
+Finaliser la documentation technique / Présentation (Streamlit, démonstration, etc.)
+
+
+
+
+
+
+Présentation finale (Soutenance) : 28 août
+[15 h 37]https://docs.google.com/presentation/d/1Oxw34XkSchEDqedZIIMcfbTrpzwvvY1bSbvxLx7IyJc/edit?usp=sharing
+[15 h 42]https://docs.google.com/document/d/1hBsyRonRnfQSAFmr607v-MVbX7uHw5Oq9Sk6X3rL9Aw/edit?tab=t.0
