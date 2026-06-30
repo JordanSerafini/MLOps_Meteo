@@ -1,0 +1,15 @@
+[tool.pytest.ini_options]
+testpaths = ["src/tests"]
+pythonpath = ["."]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::UserWarning"
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "BLE"]
+ignore = ["BLE001", "N806", "N803"]

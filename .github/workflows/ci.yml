@@ -1,0 +1,35 @@
+name: CI — Tests & Lint
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Tests unitaires & lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: App
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: App/requirements/test.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements/test.txt
+
+      - name: Lint (ruff)
+        run: ruff check src/
+
+      - name: Tests (pytest)
+        run: pytest src/tests/ -v --tb=short
