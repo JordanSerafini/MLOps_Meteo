@@ -1,4 +1,4 @@
-name: meteo-liora
+## name: meteo-liora  # commented for compatibility with older docker-compose
 
 services:
   # --- Tracking + Model Registry (backend SQLite, artefacts servis par le serveur) ---
@@ -23,7 +23,9 @@ services:
       context: .
       dockerfile: docker/Dockerfile.trainer
     environment:
-      MLFLOW_TRACKING_URI: http://mlflow:5000
+      MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI:-http://mlflow:5000}
+      MLFLOW_TRACKING_USERNAME: ${DAGSHUB_USER:-}
+      MLFLOW_TRACKING_PASSWORD: ${DAGSHUB_TOKEN:-}
       DATA_PATH: /data/weatherAUS.csv
     volumes:
       - ../Data:/data:ro
@@ -39,7 +41,9 @@ services:
       context: .
       dockerfile: docker/Dockerfile.api
     environment:
-      MLFLOW_TRACKING_URI: http://mlflow:5000
+      MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI:-http://mlflow:5000}
+      MLFLOW_TRACKING_USERNAME: ${DAGSHUB_USER:-}
+      MLFLOW_TRACKING_PASSWORD: ${DAGSHUB_TOKEN:-}
       MODEL_URI: models:/rain-australia@champion
       DECISION_THRESHOLD: "${DECISION_THRESHOLD:-0.5}"
     ports:
@@ -68,14 +72,14 @@ services:
     networks: [mlops]
 
   # --- Monitoring
-  # prometheus:
-  #   image: prom/prometheus:v2.54.1
-  #   ports: ["9090:9090"]
-  #   volumes:
-  #     - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-  #     - prom-data:/prometheus
-  #   depends_on: [api]
-  #   networks: [mlops]
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    ports: ["9090:9090"]
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prom-data:/prometheus
+    depends_on: [api]
+    networks: [mlops]
 
 networks:
   mlops:
@@ -83,4 +87,4 @@ networks:
 
 volumes:
   mlflow-data:
-  # prom-data:
+  prom-data:
