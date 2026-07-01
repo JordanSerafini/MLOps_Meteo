@@ -42,8 +42,8 @@ services:
       MLFLOW_TRACKING_URI: http://mlflow:5000
       MODEL_URI: models:/rain-australia@champion
       DECISION_THRESHOLD: "${DECISION_THRESHOLD:-0.5}"
-    ports:
-      - "8000:8000"
+    expose:
+      - "8000"
     depends_on:
       mlflow:
         condition: service_healthy
@@ -77,10 +77,58 @@ services:
   #   depends_on: [api]
   #   networks: [mlops]
 
+  # --- Orchestration (Airflow standalone) ---
+  airflow:
+    image: apache/airflow:2.10.4-python3.12
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db:5432/airflow
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "false"
+      AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
+      # Connexion HTTP vers l'API (utilisée par le DAG)
+      AIRFLOW_CONN_RAIN_API: http://api:8000
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./dags:/opt/airflow/dags:ro
+      - airflow-logs:/opt/airflow/logs
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      airflow-db:
+        condition: service_healthy
+    command: >
+      bash -c "airflow db migrate &&
+               airflow users create --role Admin --username admin --password admin
+                 --email admin@example.com --firstname Admin --lastname MLOps || true &&
+               airflow scheduler &
+               airflow webserver"
+    profiles: ["orchestration"]
+    networks: [mlops]
+
+  airflow-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - airflow-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    profiles: ["orchestration"]
+    networks: [mlops]
+
 networks:
   mlops:
     driver: bridge
 
 volumes:
   mlflow-data:
+  airflow-logs:
+  airflow-pgdata:
   # prom-data:
+

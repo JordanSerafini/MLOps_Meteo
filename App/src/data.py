@@ -3,12 +3,11 @@
 Module UNIQUE partagé par l'entraînement et l'inférence -> zéro divergence de schéma
 entre train et serve (le préprocessing vit dans le Pipeline sklearn).
 """
-import numpy as np
 import pandas as pd
 from sklearn.compose import ColumnTransformer
-from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer
-from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 from . import config
 
