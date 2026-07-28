@@ -141,12 +141,21 @@ vers la VM proxy (`192.168.1.32`). nginx y route chaque sous-domaine vers la VM 
 |---|---|---|
 | https://streamlit.jordan-s.org | démo Streamlit | 🌐 public |
 | https://api.meteo.jordan-s.org | API FastAPI (`/docs` pour Swagger) | 🌐 public |
-| https://mlflow.jordan-s.org (ou api.mlflow.…) | MLflow UI | 🔒 basic-auth |
+| https://mlflow.jordan-s.org | MLflow UI | 🔒 basic-auth |
 | https://airflow.jordan-s.org | Airflow UI | 🔒 login admin |
 
 Certificats **Let's Encrypt** (certbot, renouvellement automatique). Les sous-domaines
 sont des enregistrements DNS de type A. MLflow est derrière une basic-auth nginx car il
 n'a **aucune authentification native** (n'importe qui pourrait écrire dans le registry).
+
+> `api.mlflow.jordan-s.org` était l'ancien nom du vhost MLflow. Retiré le 28/07/2026
+> (vhost + certificat) : le nom canonique est `mlflow.jordan-s.org`.
+
+**SNI par défaut fermé.** Un vhost `default_server` sur le 443 (`00-default-deny`, certificat
+auto-signé, `return 444`) intercepte tout nom qui n'a pas son propre vhost. Sans lui, nginx
+sert le **premier vhost 443 par ordre alphabétique** — n'importe quel nom DNS pointant vers
+l'IP publique exposait donc l'UI Airflow. Le `default_server` du port 80 existait déjà ;
+celui du 443 manquait.
 
 > 🔑 Les mots de passe (admin Airflow, basic-auth MLflow) ne sont **pas dans le repo** :
 > demandez-les à Jordan. Ils vivent dans `App/.env.prod` (gitignoré) et
@@ -213,6 +222,11 @@ Instructifs pour comprendre pourquoi certains choix ont été faits :
    DNS mais pas en vhost nginx : nginx servait alors le **vhost par défaut** du port 443
    (Airflow, premier alphabétiquement) avec un avertissement de certificat. Règle : chaque
    record DNS doit avoir son vhost.
+   *Corrigé le 28/07/2026* — deux fixes complémentaires : le vhost `mlflow.jordan-s.org`
+   a été créé (basic-auth + certbot), **et** un `default_server` a été ajouté sur le 443
+   pour que le problème ne puisse plus se reproduire avec un autre nom. La règle « un
+   record = un vhost » reste vraie, mais elle ne doit pas être la seule défense : le
+   `default_server` est le filet de sécurité.
 4. **Guillemets dans `command:` de compose** — `--password "${VAR}"` à l'intérieur d'un
    `bash -c "…"` casse le parsing (guillemets imbriqués) → l'utilisateur admin Airflow
    n'était jamais créé. Fix : pas de guillemets internes.
