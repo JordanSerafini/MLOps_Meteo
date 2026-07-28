@@ -1,22 +1,27 @@
 """
-DAG Airflow — Pipeline d'entraînement de bout en bout.
+DAG Airflow — Pipeline de déploiement (split strict).
 
-Orchestration :
-  1. validate_data   → vérifie que le CSV existe et n'est pas vide
-  2. train_model     → entraîne le modèle (RandomForest) et l'enregistre dans MLflow
-  3. reload_api      → recharge le modèle dans l'API de production
-  4. smoke_test      → vérifie qu'une prédiction fonctionne après le déploiement
+L'entraînement est DÉPORTÉ sur le PC de dev (specs serveur limitées) : il pousse le
+modèle `@champion` directement dans le registry MLflow du serveur (mode --serve-artifacts).
+Ce DAG ne fait donc QUE le déploiement, déclenché à distance après un entraînement réussi :
 
-Planification : chaque dimanche à 02h00 (modifiable via schedule).
+  1. wait_for_api       → attend que l'API réponde (/health status ok)
+  2. reload_api         → recharge le modèle @champion depuis le registry (/reload)
+  3. check_model_loaded → confirme que le modèle est bien chargé (/health model_loaded)
+  4. smoke_test         → une prédiction de bout en bout (/predict)
+  5. verify_prediction  → valide la cohérence de la réponse
+
+Déclenchement : manuel ou via l'API REST Airflow depuis le PC de dev
+(`POST /api/v1/dags/rain_australia_deploy_pipeline/dagRuns`). Aucun entraînement,
+aucun accès Docker ni CSV côté serveur.
 """
+import json
 from datetime import datetime, timedelta
 
 from airflow import DAG
 from airflow.operators.python import PythonOperator
-from airflow.providers.docker.operators.docker import DockerOperator
 from airflow.providers.http.operators.http import SimpleHttpOperator
 from airflow.providers.http.sensors.http import HttpSensor
-import json
 
 # ─── Configuration par défaut ─────────────────────────────────────────
 default_args = {
@@ -25,33 +30,11 @@ default_args = {
     "email_on_failure": False,
     "email_on_retry": False,
     "retries": 1,
-    "retry_delay": timedelta(minutes=5),
+    "retry_delay": timedelta(minutes=2),
 }
 
+
 # ─── Fonctions Python ────────────────────────────────────────────────
-
-def validate_data(**kwargs):
-    """Vérifie que le fichier de données existe et contient des lignes."""
-    import pandas as pd
-    import os
-
-    data_path = os.getenv("DATA_PATH", "/data/weatherAUS.csv")
-    if not os.path.exists(data_path):
-        raise FileNotFoundError(f"Fichier de données introuvable : {data_path}")
-
-    df = pd.read_csv(data_path, nrows=5)
-    n_cols = len(df.columns)
-    if n_cols < 10:
-        raise ValueError(f"Le fichier semble corrompu : seulement {n_cols} colonnes")
-
-    # Compter le nombre total de lignes (rapide avec wc -l ou pandas)
-    n_rows = sum(1 for _ in open(data_path)) - 1  # -1 pour le header
-    print(f"✅ Données validées : {n_rows} lignes, {n_cols} colonnes")
-
-    # Passer les infos au XCom pour les tâches suivantes
-    kwargs["ti"].xcom_push(key="n_rows", value=n_rows)
-    kwargs["ti"].xcom_push(key="n_cols", value=n_cols)
-
 
 def check_smoke_test_response(**kwargs):
     """Vérifie que la réponse de l'API est cohérente."""
@@ -66,40 +49,16 @@ def check_smoke_test_response(**kwargs):
 
 # ─── DAG ──────────────────────────────────────────────────────────────
 with DAG(
-    dag_id="rain_australia_training_pipeline",
-    description="Pipeline MLOps : validation → entraînement → déploiement → smoke test",
+    dag_id="rain_australia_deploy_pipeline",
+    description="Pipeline MLOps (déploiement) : reload → check → smoke test",
     default_args=default_args,
     start_date=datetime(2025, 1, 1),
-    schedule="0 2 * * 0",  # chaque dimanche à 02h00
+    schedule=None,  # déclenché à distance après un entraînement sur le PC de dev
     catchup=False,
-    tags=["mlops", "training", "rain-australia"],
+    tags=["mlops", "deploy", "rain-australia"],
 ) as dag:
 
-    # 1. Validation des données
-    validate = PythonOperator(
-        task_id="validate_data",
-        python_callable=validate_data,
-    )
-
-    # 2. Entraînement du modèle (via le conteneur trainer existant)
-    train = DockerOperator(
-        task_id="train_model",
-        image="meteo-liora-trainer:latest",
-        command="--model rf --register",
-        environment={
-            "MLFLOW_TRACKING_URI": "http://mlflow:5000",
-            "DATA_PATH": "/data/weatherAUS.csv",
-        },
-        network_mode="meteo-liora_mlops",
-        mounts=[
-            # Monte le dossier Data en lecture seule
-            {"source": "/data", "target": "/data", "type": "bind", "read_only": True},
-        ],
-        auto_remove="success",
-        docker_url="unix://var/run/docker.sock",
-    )
-
-    # 3. Attendre que l'API soit disponible puis recharger le modèle
+    # 1. Attendre que l'API soit disponible
     wait_api = HttpSensor(
         task_id="wait_for_api",
         http_conn_id="rain_api",
@@ -109,12 +68,23 @@ with DAG(
         timeout=120,
     )
 
+    # 2. Recharger le modèle @champion depuis le registry MLflow
     reload_api = SimpleHttpOperator(
         task_id="reload_api",
         http_conn_id="rain_api",
         endpoint="/reload",
         method="POST",
         response_check=lambda response: response.json().get("reloaded") is True,
+        log_response=True,
+    )
+
+    # 3. Confirmer que le modèle est effectivement chargé
+    check_model_loaded = SimpleHttpOperator(
+        task_id="check_model_loaded",
+        http_conn_id="rain_api",
+        endpoint="/health",
+        method="GET",
+        response_check=lambda response: response.json().get("model_loaded") is True,
         log_response=True,
     )
 
@@ -140,4 +110,4 @@ with DAG(
     )
 
     # ─── Orchestration ────────────────────────────────────────────────
-    validate >> train >> wait_api >> reload_api >> smoke_test >> verify
+    wait_api >> reload_api >> check_model_loaded >> smoke_test >> verify

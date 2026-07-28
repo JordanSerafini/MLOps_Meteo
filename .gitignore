@@ -35,9 +35,16 @@ mlflow.db
 # --- Docker ---
 # (rien à ignorer : compose/Dockerfiles sont versionnés)
 
+# --- Secrets / variables d'environnement (ne jamais commiter) ---
+.env
+.env.*
+!.env.example
+
 # --- OS / éditeurs ---
 .DS_Store
 Thumbs.db
 *.swp
 *~
 .*.kate-swp
+
+Makefile
