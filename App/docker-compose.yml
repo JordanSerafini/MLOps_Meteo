@@ -93,13 +93,13 @@ services:
     volumes:
       - ./dags:/opt/airflow/dags:ro
       - airflow-logs:/opt/airflow/logs
-      - /var/run/docker.sock:/var/run/docker.sock
+      # socket Docker retiré : plus de DockerOperator (entraînement déporté sur le PC de dev)
     depends_on:
       airflow-db:
         condition: service_healthy
     command: >
       bash -c "airflow db migrate &&
-               airflow users create --role Admin --username admin --password admin
+               airflow users create --role Admin --username admin --password ${AIRFLOW_ADMIN_PASSWORD:-admin}
                  --email admin@example.com --firstname Admin --lastname MLOps || true &&
                airflow scheduler &
                airflow webserver"

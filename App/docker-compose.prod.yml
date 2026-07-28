@@ -1,0 +1,55 @@
+# docker-compose.prod.yml — surcharge de PRODUCTION (VM mediaarr, 192.168.1.34)
+#
+# Déploiement (depuis /opt/meteo-liora/ sur la VM) :
+#   docker compose --env-file .env.prod \
+#     -f docker-compose.yml -f docker-compose.prod.yml \
+#     --profile orchestration up -d mlflow api streamlit airflow airflow-db
+#
+# --env-file .env.prod alimente l'interpolation ${DECISION_THRESHOLD} / ${AIRFLOW_ADMIN_PASSWORD}
+# déjà présente dans docker-compose.yml. Le service `trainer` (profil train) n'est JAMAIS lancé
+# ici : l'entraînement est déporté sur le PC de dev, qui pousse le modèle au registry MLflow
+# du serveur (mode --serve-artifacts).
+services:
+  mlflow:
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  api:
+    restart: unless-stopped
+    ports:
+      # VM dédiée : 8000 libre. Streamlit appelle api:8000 en interne (réseau docker).
+      - "8000:8000"
+    deploy:
+      resources:
+        limits:
+          memory: 1G   # marge pour le chargement du pipeline sklearn en mémoire
+
+  streamlit:
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  airflow:
+    restart: unless-stopped
+    environment:
+      # autorise le déclenchement du DAG via l'API REST en basic-auth (depuis le PC de dev)
+      AIRFLOW__API__AUTH_BACKENDS: "airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session"
+      # accès correct derrière le reverse proxy HTTPS (airflow.jordan-s.org)
+      AIRFLOW__WEBSERVER__ENABLE_PROXY_FIX: "True"
+      AIRFLOW__WEBSERVER__BASE_URL: "https://airflow.jordan-s.org"
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+
+  airflow-db:
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
