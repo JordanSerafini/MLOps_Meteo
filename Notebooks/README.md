@@ -1,30 +1,35 @@
 # Notebooks
 
-Projet découpé en 3 notebooks indépendants (chacun s'exécute seul) :
+Trois notebooks, chacun exécutable indépendamment (chacun recharge le CSV depuis zéro).
 
-1. **Exploration (EDA)** — qualité des données, cible & déséquilibre, baselines, corrélations, géo/saison
-2. **Préparation** — feature `Month`, `ColumnTransformer` anti-fuite, encodage
-3. **Modélisation** — Régression Logistique, Random Forest (+ `balanced`), comparatif, conclusions
+1. `01_exploration.ipynb` — qualité des données, déséquilibre de la cible, baselines à battre,
+   corrélations, géographie et saisonnalité
+2. `02_preprocessing.ipynb` — nettoyage, feature `Month`, préprocesseur ajusté sur le train seul
+3. `03_modelisation.ipynb` — régression logistique, forêt aléatoire, gradient boosting, courbes
+   ROC et précision-rappel, choix du seuil de décision
 
-## ⚠️ Lire les notebooks (le rendu `.ipynb` de GitHub est défaillant)
+## Lire les notebooks
 
-Le viewer Jupyter de GitHub échoue régulièrement (« An error occurred ») même sur des notebooks valides et légers — c'est un **bug de leur moteur de rendu**, pas des fichiers (vérifié : ils se rendent correctement avec les versions exactes de nbformat/nbconvert de GitHub). Pour lire le contenu **avec les résultats**, au choix :
+Le viewer de GitHub échoue régulièrement sur les `.ipynb` (« An error occurred »), y compris sur
+des fichiers valides. Trois solutions, par ordre de fiabilité :
 
-| Méthode | Lien / chemin | Fiabilité |
+| Format | Chemin | Remarque |
 |---|---|---|
-| **Markdown** (rendu GitHub natif) | [`md/01_exploration.md`](md/01_exploration.md) · [`md/02_preprocessing.md`](md/02_preprocessing.md) · [`md/03_modelisation.md`](md/03_modelisation.md) | ✅ **infaillible** (GitHub rend toujours le `.md`) |
-| **Google Colab** (lecture + exécution) | `https://colab.research.google.com/github/JordanSerafini/MlOps_Meteo/blob/master/Notebooks/01_exploration.ipynb` | ✅ très fiable |
-| **nbviewer** | `https://nbviewer.org/github/JordanSerafini/MlOps_Meteo/blob/master/Notebooks/01_exploration.ipynb` | ⚠️ parfois surchargé |
+| Markdown | [`md/01_exploration.md`](md/01_exploration.md) · [`md/02_preprocessing.md`](md/02_preprocessing.md) · [`md/03_modelisation.md`](md/03_modelisation.md) | rendu natif GitHub, marche toujours |
+| Colab | `https://colab.research.google.com/github/JordanSerafini/MLOps_Meteo/blob/master/Notebooks/01_exploration.ipynb` | lecture et exécution |
+| nbviewer | `https://nbviewer.org/github/JordanSerafini/MLOps_Meteo/blob/master/Notebooks/01_exploration.ipynb` | parfois lent |
 
-(remplacer `01_exploration` par `02_preprocessing` / `03_modelisation`)
+(remplacer `01_exploration` par le notebook voulu)
 
-## Fichiers
+## Organisation des fichiers
 
 | Chemin | Contenu |
 |---|---|
-| `01_*.ipynb` `02_*.ipynb` `03_*.ipynb` | notebooks **exécutés** (graphiques + scores inline) |
-| `md/*.md` (+ `*_files/`) | export **Markdown** — **à privilégier pour lire sur GitHub** |
-| `clean/*.ipynb` | notebooks **sans sorties** (légers) |
-| `ORIGINAL_…Australie.ipynb` | notebook Colab d'origine (référence, intact) |
+| `0*.ipynb` | notebooks exécutés, avec les graphiques et les scores |
+| `clean/` | mêmes notebooks sans les sorties — c'est la version qu'on édite |
+| `md/` | export Markdown, à privilégier pour lire sur GitHub |
+| `ORIGINAL_…Australie.ipynb` | notebook Colab de départ, laissé intact pour comparaison |
 
-Les analyses rédigées (chiffres + interprétations) sont aussi dans `../Analyses/EDA_Analyse_Donnees.md`.
+Les bugs du notebook d'origine (imputation en chained assignment, fuite de données, chemins
+Colab, appels seaborn dépréciés) sont décrits dans `Perso/bugs.txt`. L'analyse rédigée avec les
+chiffres détaillés est dans `../Analyses/EDA_Analyse_Donnees.md`.

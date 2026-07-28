@@ -1,0 +1,67 @@
+groups:
+  - name: api
+    rules:
+      - alert: ApiInjoignable
+        expr: up{job="rain-api"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          resume: "L'API ne répond plus au scrutin Prometheus"
+          detail: "Aucune réponse depuis 2 minutes. Vérifier `docker compose ps` sur la VM."
+
+      - alert: ModeleNonCharge
+        expr: rain_model_loaded == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          resume: "L'API tourne mais ne sert aucun modèle"
+          detail: >
+            /health répond, les prédictions échouent en 503. Le registry MLflow est
+            probablement injoignable ou aucun modèle ne porte l'alias @champion.
+
+      - alert: TropDErreursServeur
+        expr: >
+          (sum(rate(http_requests_total{status="5xx"}[5m])) or vector(0))
+          / clamp_min(sum(rate(http_requests_total[5m])), 0.001) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          resume: "Plus de 5 % de réponses en erreur"
+          detail: "Taux mesuré : {{ $value | humanizePercentage }} sur les 5 dernières minutes."
+
+      - alert: LatenceDegradee
+        expr: >
+          histogram_quantile(0.95,
+            sum(rate(http_request_duration_seconds_bucket{handler="/predict"}[5m])) by (le)) > 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          resume: "Les prédictions ralentissent"
+          detail: "95e centile à {{ $value | humanizeDuration }}, au-delà de la seconde."
+
+  - name: derive
+    rules:
+      - alert: DeriveDetectee
+        expr: rain_dataset_drift == 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          resume: "Les données reçues ont dérivé"
+          detail: >
+            {{ with query "rain_share_drifted_columns" }}{{ . | first | value | humanizePercentage }}{{ end }}
+            des colonnes suivies ont dérivé, au-delà du seuil de 50 %.
+            Réentraîner avec `make deploy-model` depuis le poste de dev.
+
+      - alert: JobDeriveMuet
+        # Sans cette règle, un job de dérive planté ressemble à un système sain.
+        expr: time() - rain_drift_last_run_timestamp > 172800
+        labels:
+          severity: warning
+        annotations:
+          resume: "Le job de dérive n'a pas tourné depuis plus de 48 h"
+          detail: "Relancer `make drift`, ou vérifier la tâche planifiée sur la VM."

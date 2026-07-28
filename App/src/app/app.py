@@ -5,6 +5,31 @@ import requests
 import streamlit as st
 
 API_URL = os.getenv("API_URL", "http://localhost:8000")
+API_USER = os.getenv("API_USER", "client")
+API_PASSWORD = os.getenv("API_PASSWORD", "")
+
+
+def jeton(rafraichir=False):
+    """Jeton gardé en session ; renouvelé seulement si l'API l'a rejeté."""
+    if rafraichir:
+        st.session_state.pop("jeton", None)
+    if "jeton" not in st.session_state:
+        r = requests.post(f"{API_URL}/token",
+                          data={"username": API_USER, "password": API_PASSWORD},
+                          timeout=10)
+        r.raise_for_status()
+        st.session_state["jeton"] = r.json()["access_token"]
+    return st.session_state["jeton"]
+
+
+def predire(charge):
+    r = requests.post(f"{API_URL}/predict", json=charge, timeout=10,
+                      headers={"Authorization": f"Bearer {jeton()}"})
+    if r.status_code == 401:
+        r = requests.post(f"{API_URL}/predict", json=charge, timeout=10,
+                          headers={"Authorization": f"Bearer {jeton(rafraichir=True)}"})
+    r.raise_for_status()
+    return r.json()
 
 st.set_page_config(page_title="Pluie en Australie", page_icon="🌧️")
 st.title("🌧️ Va-t-il pleuvoir demain ?")
@@ -43,9 +68,7 @@ if submitted:
         "RainToday": raintoday,
     }
     try:
-        r = requests.post(f"{API_URL}/predict", json=payload, timeout=10)
-        r.raise_for_status()
-        out = r.json()
+        out = predire(payload)
         st.metric("Probabilité de pluie demain", f"{out['probability'] * 100:.1f}%")
         if out["rain_tomorrow"]:
             st.success("☔ Pluie probable demain")

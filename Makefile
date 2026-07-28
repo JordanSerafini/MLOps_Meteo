@@ -3,15 +3,17 @@
 COMPOSE := docker compose -f App/docker-compose.yml
 VENV    := .venv/bin
 # Profils = tous les services optionnels, pour un down/clean exhaustif
-PROFILES := --profile train --profile orchestration
+PROFILES := --profile train --profile orchestration --profile monitoring --profile drift
 
 .DEFAULT_GOAL := help
 
 .PHONY: help \
         build up down restart logs ps status \
         train reload predict test-api health \
-        install test lint fmt ci \
+        secrets install test lint fmt ci \
         airflow-up airflow-down airflow-logs \
+        monitoring-up monitoring-down \
+        drift drift-demo trafic \
         clean stop-all \
         train-remote deploy-model
 
@@ -47,18 +49,36 @@ train:
 	$(COMPOSE) $(PROFILES) run --rm trainer
 	-$(MAKE) reload
 
-reload:         
-	@$(COMPOSE) exec -T api python -c "import urllib.request as u; print(u.urlopen(u.Request('http://localhost:8000/reload', method='POST'), timeout=60).read().decode())"
+# Récupère un jeton pour le compte passé en $(1) : `$(call jeton,ADMIN)`.
+# L'API est bindée sur la boucle locale, on l'appelle donc depuis l'hôte.
+API_LOCAL := http://localhost:8000
+define jeton
+set -a; . App/.env; set +a; \
+curl -fsS -X POST $(API_LOCAL)/token \
+     -d "username=$$API_$(1)_USER&password=$$API_$(1)_PASSWORD" \
+  | $(VENV)/python -c 'import sys,json; print(json.load(sys.stdin)["access_token"])'
+endef
 
-health:         
-	@$(COMPOSE) exec -T api python -c "import urllib.request as u; print(u.urlopen('http://localhost:8000/health', timeout=10).read().decode())"
+reload:          ## recharge le modèle @champion (compte admin)
+	@T=$$($(call jeton,ADMIN)); \
+	 curl -fsS -X POST $(API_LOCAL)/reload -H "Authorization: Bearer $$T"; echo
 
-test-api: predict  
-predict:        
-	@$(COMPOSE) exec -T api python -c "import urllib.request as u, json; p=json.dumps({'Location':'Sydney','Month':7,'RainToday':'Yes','Humidity3pm':80,'Sunshine':3.5,'Pressure3pm':1008,'Rainfall':12,'WindGustSpeed':56,'Cloud3pm':8,'Temp3pm':16}).encode(); r=u.Request('http://localhost:8000/predict', data=p, headers={'Content-Type':'application/json'}, method='POST'); print(u.urlopen(r, timeout=15).read().decode())"
+health:          ## état de l'API (endpoint ouvert)
+	@curl -fsS $(API_LOCAL)/health; echo
+
+test-api: predict
+predict:         ## une prédiction de démonstration (compte client)
+	@T=$$($(call jeton,CLIENT)); \
+	 curl -fsS -X POST $(API_LOCAL)/predict -H "Authorization: Bearer $$T" \
+	      -H 'Content-Type: application/json' \
+	      -d '{"Location":"Sydney","Month":7,"RainToday":"Yes","Humidity3pm":80,"Sunshine":3.5,"Pressure3pm":1008,"Rainfall":12,"WindGustSpeed":56,"Cloud3pm":8,"Temp3pm":16}'; echo
+
+## ————— Secrets —————
+secrets:         ## génère App/.env et App/.env.api (FORCE=1 pour écraser)
+	$(VENV)/python App/scripts/generer_secrets.py $${FORCE:+--force}
 
 ## ————— Qualité (local, via .venv) —————
-install:         
+install:
 	$(VENV)/pip install -r App/requirements/test.txt
 
 lint:         
@@ -82,8 +102,31 @@ airflow-down:
 airflow-logs:    
 	$(COMPOSE) logs -f --tail=100 airflow
 
+## ————— Monitoring (Prometheus + Grafana + Pushgateway) —————
+monitoring-up:   ## démarre Prometheus (:9090), Grafana (:3000) et le pushgateway
+	$(COMPOSE) --profile monitoring up -d prometheus grafana pushgateway
+	@echo "  Grafana    http://localhost:3000  (admin / $${GRAFANA_ADMIN_PASSWORD:-admin})"
+	@echo "  Prometheus http://localhost:9090"
+
+monitoring-down:
+	$(COMPOSE) --profile monitoring stop prometheus grafana pushgateway
+
+## ————— Détection de dérive —————
+trafic:          ## envoie N prédictions à l'API (N=100 par défaut, STATION= pour cibler)
+	$(VENV)/python App/scripts/simuler_trafic.py --n $${N:-100} $${STATION:+--station $$STATION}
+
+drift:           ## compare le trafic reçu aux données d'entraînement
+	$(COMPOSE) --profile drift run --rm drift
+
+drift-demo:      ## démo : injecte du trafic décalé (Portland) puis mesure la dérive
+	@echo "→ 500 prédictions depuis Portland (37 % de jours pluvieux contre 22 % en moyenne)…"
+	@echo "  (500 = au-dessus du minimum de 400, cf. Docs/CALIBRATION_DRIFT.md)"
+	$(VENV)/python App/scripts/simuler_trafic.py --n 500 --station Portland
+	@echo "→ mesure de la dérive…"
+	$(MAKE) drift
+
 ## ————— Nettoyage —————
-clean:          
+clean:
 	$(COMPOSE) $(PROFILES) down -v
 
 ## ————— Déploiement serveur (piloté depuis ce PC → VM 192.168.1.34) —————
