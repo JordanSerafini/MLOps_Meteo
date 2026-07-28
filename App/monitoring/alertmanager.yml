@@ -1,0 +1,31 @@
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: webhook
+  group_by: [alertname, severity]
+  group_wait: 30s
+  group_interval: 5m
+  # Une alerte non résolue est renvoyée toutes les 4 h plutôt que toutes les 5 min :
+  # au-delà, on arrête de lire les notifications.
+  repeat_interval: 4h
+  routes:
+    - matchers: [severity = "critical"]
+      receiver: webhook
+      group_wait: 10s
+
+receivers:
+  - name: webhook
+    webhook_configs:
+      # ALERT_WEBHOOK_URL n'est pas interpolé par Alertmanager : la valeur est
+      # substituée au déploiement (voir deployement/README.md). Sans destination
+      # configurée, les alertes restent consultables dans l'interface sur :9093.
+      - url: "http://localhost:9093/-/pas-de-destination"
+        send_resolved: true
+
+inhibit_rules:
+  # Si l'API est injoignable, inutile d'alerter en plus sur le modèle non chargé
+  # et la latence : c'est la même panne.
+  - source_matchers: [alertname = "ApiInjoignable"]
+    target_matchers: [severity =~ "critical|warning"]
+    equal: [job]

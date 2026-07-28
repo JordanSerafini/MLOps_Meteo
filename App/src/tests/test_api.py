@@ -1,40 +1,14 @@
 """Tests d'intégration — endpoints de l'API FastAPI.
 
-Utilise un mock du modèle sklearn pour tester l'API indépendamment de MLflow.
+Le modèle est mocké (pas de MLflow requis) et les fixtures d'authentification
+viennent de conftest.py.
 """
-from unittest.mock import MagicMock, patch
+import json
+from unittest.mock import patch
 
-import numpy as np
-import pytest
 from fastapi.testclient import TestClient
 
-
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-@pytest.fixture()
-def mock_model():
-    """Simule un Pipeline sklearn avec predict_proba et feature_names_in_."""
-    model = MagicMock()
-    model.predict_proba.return_value = np.array([[0.3, 0.7]])
-    model.feature_names_in_ = np.array([
-        "Location", "MinTemp", "MaxTemp", "Rainfall", "Evaporation",
-        "Sunshine", "WindGustDir", "WindGustSpeed", "WindDir9am", "WindDir3pm",
-        "WindSpeed9am", "WindSpeed3pm", "Humidity9am", "Humidity3pm",
-        "Pressure9am", "Pressure3pm", "Cloud9am", "Cloud3pm",
-        "Temp9am", "Temp3pm", "RainToday", "Month",
-    ])
-    return model
-
-
-@pytest.fixture()
-def client(mock_model):
-    """TestClient avec le modèle mocké et réseau bloqué (pas de MLflow requis)."""
-    with patch("src.api.main._state", {"model": mock_model, "version": "42"}):
-        with patch("src.api.main.load_model", return_value=mock_model):
-            from src.api.main import app
-            with TestClient(app) as c:
-                yield c
+from src.api import auth
 
 
 # ---------------------------------------------------------------------------
@@ -64,27 +38,27 @@ class TestPredictEndpoint:
         "Rainfall": 12.0, "WindGustSpeed": 56, "Cloud3pm": 8, "Temp3pm": 16.0,
     }
 
-    def test_predict_returns_200(self, client):
-        r = client.post("/predict", json=self.PAYLOAD)
+    def test_predict_returns_200(self, client, entetes_client):
+        r = client.post("/predict", json=self.PAYLOAD, headers=entetes_client)
         assert r.status_code == 200
 
-    def test_predict_response_schema(self, client):
-        data = client.post("/predict", json=self.PAYLOAD).json()
+    def test_predict_response_schema(self, client, entetes_client):
+        data = client.post("/predict", json=self.PAYLOAD, headers=entetes_client).json()
         assert "rain_tomorrow" in data
         assert "probability" in data
         assert "threshold" in data
 
-    def test_predict_probability_in_range(self, client):
-        data = client.post("/predict", json=self.PAYLOAD).json()
+    def test_predict_probability_in_range(self, client, entetes_client):
+        data = client.post("/predict", json=self.PAYLOAD, headers=entetes_client).json()
         assert 0.0 <= data["probability"] <= 1.0
 
-    def test_predict_empty_payload_accepted(self, client):
+    def test_predict_empty_payload_accepted(self, client, entetes_client):
         """Tous les champs sont optionnels — un payload vide est valide."""
-        r = client.post("/predict", json={})
+        r = client.post("/predict", json={}, headers=entetes_client)
         assert r.status_code == 200
 
-    def test_predict_returns_model_version(self, client):
-        data = client.post("/predict", json=self.PAYLOAD).json()
+    def test_predict_returns_model_version(self, client, entetes_client):
+        data = client.post("/predict", json=self.PAYLOAD, headers=entetes_client).json()
         assert data["model_version"] == "42"
 
 
@@ -97,21 +71,67 @@ class TestPredictNoModel:
         with patch("src.api.main._state", {"model": None, "version": None}):
             with patch("src.api.main.load_model", side_effect=RuntimeError("no model")):
                 from src.api.main import app
+                jeton = auth.creer_jeton("client", ["predict"])
                 with TestClient(app) as c:
-                    r = c.post("/predict", json={"Location": "Sydney"})
+                    r = c.post("/predict", json={"Location": "Sydney"},
+                               headers={"Authorization": f"Bearer {jeton}"})
                     assert r.status_code == 503
+
+
+# ---------------------------------------------------------------------------
+# Tests — journal des prédictions (JSONL)
+# ---------------------------------------------------------------------------
+class TestPredictionLog:
+    PAYLOAD = {"Location": "Sydney", "Month": 7, "Humidity3pm": 80}
+
+    def test_ecrit_une_ligne_par_prediction(self, client, entetes_client, tmp_path):
+        journal = tmp_path / "sous-dossier" / "predictions.jsonl"
+        with patch("src.api.main.config.PREDICTION_LOG_PATH", str(journal)):
+            client.post("/predict", json=self.PAYLOAD, headers=entetes_client)
+            client.post("/predict", json=self.PAYLOAD, headers=entetes_client)
+
+        lignes = journal.read_text(encoding="utf-8").strip().splitlines()
+        assert len(lignes) == 2
+
+    def test_contenu_de_la_ligne(self, client, entetes_client, tmp_path):
+        journal = tmp_path / "predictions.jsonl"
+        with patch("src.api.main.config.PREDICTION_LOG_PATH", str(journal)):
+            client.post("/predict", json=self.PAYLOAD, headers=entetes_client)
+
+        ligne = json.loads(journal.read_text(encoding="utf-8").strip())
+        assert set(ligne) == {"ts", "request_id", "model_version", "threshold",
+                              "proba", "label", "features"}
+        assert 0.0 <= ligne["proba"] <= 1.0
+        assert isinstance(ligne["label"], bool)
+        assert ligne["features"]["Location"] == "Sydney"
+
+    def test_desactive_si_chemin_vide(self, client, entetes_client, tmp_path):
+        """Chemin vide = pas de journalisation, et surtout pas d'erreur."""
+        with patch("src.api.main.config.PREDICTION_LOG_PATH", ""):
+            r = client.post("/predict", json=self.PAYLOAD, headers=entetes_client)
+        assert r.status_code == 200
+        assert list(tmp_path.iterdir()) == []
+
+    def test_erreur_d_ecriture_ne_casse_pas_la_prediction(self, client, entetes_client, tmp_path):
+        """Un chemin inaccessible désactive le journal mais laisse l'API répondre."""
+        fichier = tmp_path / "occupe"
+        fichier.write_text("")
+        with patch("src.api.main.config.PREDICTION_LOG_PATH", str(fichier / "impossible.jsonl")):
+            with patch("src.api.main._log_desactive", False):
+                r = client.post("/predict", json=self.PAYLOAD, headers=entetes_client)
+        assert r.status_code == 200
 
 
 # ---------------------------------------------------------------------------
 # Tests — /reload
 # ---------------------------------------------------------------------------
 class TestReloadEndpoint:
-    def test_reload_success(self, client):
-        r = client.post("/reload")
+    def test_reload_success(self, client, entetes_admin):
+        r = client.post("/reload", headers=entetes_admin)
         assert r.status_code == 200
         assert r.json()["reloaded"] is True
 
-    def test_reload_failure_returns_503(self, client):
+    def test_reload_failure_returns_503(self, client, entetes_admin):
         with patch("src.api.main.load_model", side_effect=RuntimeError("fail")):
-            r = client.post("/reload")
+            r = client.post("/reload", headers=entetes_admin)
             assert r.status_code == 503

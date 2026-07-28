@@ -67,7 +67,22 @@ make deploy-model
 | `streamlit` | build custom (`Dockerfile.streamlit`) | 8501 | interface de démo (appelle l'API en interne via `http://api:8000`) |
 | `airflow` | `apache/airflow:2.10.4` | 8080 | orchestration du **déploiement** (pas de l'entraînement !) |
 | `airflow-db` | `postgres:16-alpine` | interne | métadonnées Airflow |
+| `prometheus` | `prom/prometheus:v2.54.1` | 9090 | collecte des métriques (profil `monitoring`) |
+| `grafana` | `grafana/grafana:11.2.0` | 3000 | tableaux de bord provisionnés par fichier (profil `monitoring`) |
+| `pushgateway` | `prom/pushgateway:v1.9.0` | interne | relais pour les métriques du job de dérive, qui est éphémère |
+| `drift` | build custom (`Dockerfile.drift`) | — | job one-shot de détection de dérive (profil `drift`) |
 | `trainer` | build custom (`Dockerfile.trainer`) | — | **jamais lancé sur le serveur** (profil `train`, utilisé sur le PC) |
+
+Les interfaces d'écoute sont pilotées par deux variables : `API_BIND` pour l'API, `HOST_BIND`
+pour les autres services. Les deux valent `127.0.0.1` par défaut (poste de dev : rien n'est
+exposé, même pas au LAN) et l'IP LAN de la VM en production, `192.168.1.36`, qui est la seule
+adresse que le reverse proxy a besoin de joindre. **Ne jamais y mettre `0.0.0.0`** : cf. le
+piège n° 6 du §7, la VM a une IPv6 publique et le service se retrouverait sur Internet.
+
+Le port de l'API n'est déclaré que dans le fichier de base — compose **concatène** les listes
+de ports entre fichiers, donc le redéclarer dans l'override provoquerait un second binding sur
+8000 et un échec au démarrage. La CI vérifie ce point, ainsi que l'absence de bind sur
+`0.0.0.0` quand aucune variable n'est fournie.
 
 Démarrage sur la VM :
 
@@ -124,6 +139,39 @@ Ce qui se passe, étape par étape :
 > Docker). On l'a réécrit : le split strict supprime l'entraînement serveur **et** le socket
 > Docker monté dans Airflow (surface d'attaque en moins).
 
+### Surveiller le modèle une fois déployé
+
+L'API journalise chaque prédiction en JSONL (volume `prediction-logs`) : c'est le jeu de
+données « courant » auquel le job de dérive compare la distribution d'entraînement.
+
+```bash
+make monitoring-up   # Prometheus :9090, Grafana :3000, pushgateway
+make trafic N=500    # envoie 500 prédictions à l'API
+make drift           # compare et pousse les métriques
+make drift-demo      # variante : injecte du trafic décalé pour déclencher la dérive
+```
+
+Le job `drift` produit trois sorties : un rapport HTML Evidently archivé dans le volume
+`drift-reports`, un `dernier_resume.json` exploitable par Airflow, et quatre métriques poussées
+au pushgateway (`rain_dataset_drift`, `rain_n_drifted_columns`, `rain_share_drifted_columns`,
+`rain_drift_samples`).
+
+Le DAG `rain_australia_drift_check` (tous les jours à 6 h) relit ce résumé et signale s'il faut
+réentraîner. Il ne lance pas le job lui-même : le socket Docker a été volontairement retiré du
+conteneur Airflow (§4), et le lui rendre reviendrait à lui donner l'équivalent du root sur
+l'hôte. Le job est donc déclenché à côté, et le DAG refuse de conclure sur un résumé de plus
+de 36 h plutôt que de raisonner sur des données périmées.
+
+Deux garde-fous valent d'être signalés, parce qu'ils viennent d'erreurs constatées :
+
+- le seuil de déclenchement (0,5) et le minimum de 400 observations ont été **mesurés**, pas
+  choisis. Avec les valeurs initiales (0,3 et 30 observations), le job annonçait 78 % de dérive
+  sur du trafic parfaitement normal. Le détail est dans `Docs/CALIBRATION_DRIFT.md` ;
+- la référence est un échantillon **figé et versionné** (`App/reference/reference.csv`), pas un
+  tirage refait à chaque exécution : une référence mouvante rend les comparaisons dans le temps
+  inexploitables. Elle est embarquée dans l'image, ce qui permet au job de tourner sur le
+  serveur alors que le CSV complet n'y est pas déployé.
+
 ### Modèle actuellement en prod
 
 - `rain-australia` **v1**, alias `@champion` — RandomForest, accuracy 0.856, ROC-AUC 0.889.
@@ -141,16 +189,31 @@ vers la VM proxy (`192.168.1.32`). nginx y route chaque sous-domaine vers la VM 
 |---|---|---|
 | https://streamlit.jordan-s.org | démo Streamlit | 🌐 public |
 | https://api.meteo.jordan-s.org | API FastAPI (`/docs` pour Swagger) | 🌐 public |
-| https://mlflow.jordan-s.org (ou api.mlflow.…) | MLflow UI | 🔒 basic-auth |
-| https://airflow.jordan-s.org | Airflow UI | 🔒 login admin |
+| https://mlflow.jordan-s.org | MLflow UI | 🔒 basic-auth nginx, utilisateur `jordan` |
+| https://airflow.jordan-s.org | Airflow UI | 🔒 login Airflow `admin` |
 
 Certificats **Let's Encrypt** (certbot, renouvellement automatique). Les sous-domaines
 sont des enregistrements DNS de type A. MLflow est derrière une basic-auth nginx car il
 n'a **aucune authentification native** (n'importe qui pourrait écrire dans le registry).
 
+> `api.mlflow.jordan-s.org` était l'ancien nom du vhost MLflow. Retiré le 28/07/2026
+> (vhost + certificat) : le nom canonique est `mlflow.jordan-s.org`.
+
+**SNI par défaut fermé.** Un vhost `default_server` sur le 443 (`00-default-deny`, certificat
+auto-signé, `return 444`) intercepte tout nom qui n'a pas son propre vhost. Sans lui, nginx
+sert le **premier vhost 443 par ordre alphabétique** — n'importe quel nom DNS pointant vers
+l'IP publique exposait donc l'UI Airflow. Le `default_server` du port 80 existait déjà ;
+celui du 443 manquait.
+
+Contrairement à MLflow, le vhost Airflow ne pose **pas** de basic-auth : l'UI est protégée
+par le seul login Airflow. C'est acceptable parce qu'Airflow a une vraie authentification,
+là où MLflow n'en a aucune.
+
 > 🔑 Les mots de passe (admin Airflow, basic-auth MLflow) ne sont **pas dans le repo** :
 > demandez-les à Jordan. Ils vivent dans `App/.env.prod` (gitignoré) et
-> `/etc/nginx/.htpasswd-mlflow` (sur la VM proxy).
+> `/etc/nginx/.htpasswd-mlflow` (sur la VM proxy). Ce dernier est un hachage `$apr1$`,
+> donc irréversible : un mot de passe perdu se remplace (`htpasswd`), il ne se retrouve pas.
+> Celui de MLflow a été régénéré le 28/07/2026 pour cette raison.
 
 ---
 
@@ -213,11 +276,36 @@ Instructifs pour comprendre pourquoi certains choix ont été faits :
    DNS mais pas en vhost nginx : nginx servait alors le **vhost par défaut** du port 443
    (Airflow, premier alphabétiquement) avec un avertissement de certificat. Règle : chaque
    record DNS doit avoir son vhost.
+   *Corrigé le 28/07/2026* — deux fixes complémentaires : le vhost `mlflow.jordan-s.org`
+   a été créé (basic-auth + certbot), **et** un `default_server` a été ajouté sur le 443
+   pour que le problème ne puisse plus se reproduire avec un autre nom. La règle « un
+   record = un vhost » reste vraie, mais elle ne doit pas être la seule défense : le
+   `default_server` est le filet de sécurité.
 4. **Guillemets dans `command:` de compose** — `--password "${VAR}"` à l'intérieur d'un
    `bash -c "…"` casse le parsing (guillemets imbriqués) → l'utilisateur admin Airflow
    n'était jamais créé. Fix : pas de guillemets internes.
 5. **RAM du node Proxmox** — le node n'avait que ~5 Go réellement libres. La VM utilise le
    **ballooning** (6 Go max, 3 Go garantis) pour ne pas asphyxier les autres VMs.
+6. **L'IPv6 contournait tout le reverse proxy** — le plus sérieux des six, découvert le
+   28/07/2026. On raisonnait comme si la VM n'était joignable que par les ports 80/443
+   redirigés vers nginx. Faux : la box délègue un préfixe IPv6 public (`/64`) à tout le LAN
+   **sans filtrer les connexions entrantes**. Chaque port publié sur `0.0.0.0` l'était donc
+   aussi sur `::`, et l'adresse IPv6 de la VM est routée depuis Internet. Vérifié depuis
+   l'extérieur : MLflow répondait `200` — c'est-à-dire un Model Registry ouvert en écriture
+   au monde entier, en clair, en contournant la basic-auth nginx — ainsi que l'UI Airflow,
+   l'API et Streamlit.
+   Trois corrections, dans cet ordre d'importance :
+   - les ports sont désormais publiés sur l'IP LAN (`HOST_BIND` / `API_BIND` = `192.168.1.36`),
+     donc plus rien n'écoute sur `::`. C'est la correction de fond : `ufw` seul n'aurait pas
+     suffi, car Docker insère ses règles **avant** la chaîne `INPUT` que ufw contrôle ;
+   - `ufw` activé sur la VM (`deny incoming`, LAN et réseau Docker autorisés), ce qui ferme
+     le port 22 côté Internet — il restait, lui, joignable en IPv6 ;
+   - valeur par défaut des deux variables passée à `127.0.0.1`, pour que l'erreur ne
+     puisse pas se reproduire par simple oubli. La CI le vérifie.
+
+   Leçon transposable : tester l'exposition d'un service **depuis l'extérieur et en IPv6**
+   (`curl "http://[<ipv6>]:<port>/"`), pas seulement en IPv4. Une redirection de port
+   absente ne prouve rien.
 
 ---
 
@@ -227,9 +315,16 @@ Instructifs pour comprendre pourquoi certains choix ont été faits :
   comme d'habitude, rien ne se code directement sur le serveur.
 - **Les URLs publiques** (§5) suffisent pour démontrer/tester le projet.
 - **Accès SSH à la VM** (pour voir les logs, comprendre docker compose…) : chaque membre a
-  un compte personnel sur `192.168.1.36` (cf. tableau ci-dessous, complété à la création
-  des comptes). ⚠️ La VM est sur un réseau **privé** : accessible uniquement depuis le
-  LAN ou via le VPN (Tailscale) — demandez une invitation.
+  un compte personnel sur `192.168.1.36`. ⚠️ **Depuis le LAN de Jordan uniquement.** Le
+  pare-feu de la VM n'accepte les connexions que depuis `192.168.1.0/24` : il n'y a pas
+  d'accès depuis Internet, ni en IPv4 (aucune redirection de port) ni en IPv6 (fermé le
+  28/07/2026, cf. piège n° 6). Ouvrir le 22 au monde pour du confort n'a pas de sens ici :
+  ce sont des comptes à mot de passe, sans fail2ban, sur une machine qui héberge le registry.
+  Pour travailler à distance, tout passe donc par **GitHub** (code + CI) et par les **URLs
+  publiques** du §5 ; les logs et l'état des conteneurs se lisent aussi dans l'UI Airflow
+  et dans Grafana. Un accès distant reste possible si le besoin s'en fait sentir : ajouter
+  la VM au tailnet Tailscale (`tailscale up --ssh` + partage du seul nœud `meteo-liora`),
+  ce qui donne un accès nominatif et révocable sans ouvrir le moindre port.
 
 | Membre | User VM | Accès |
 |---|---|---|
@@ -238,7 +333,8 @@ Instructifs pour comprendre pourquoi certains choix ont été faits :
 | Rodrigue | `rodrigue` | idem |
 | Karine | `karine` | idem |
 
-Première connexion (depuis le LAN de Jordan ou via Tailscale) :
+Les mots de passe temporaires ont été régénérés le 28/07/2026 (les précédents n'avaient été
+transmis qu'à l'oral et n'étaient consignés nulle part). Première connexion, depuis le LAN :
 
 ```bash
 ssh abdelmalek@192.168.1.36   # le mot de passe temporaire vous sera demandé,
