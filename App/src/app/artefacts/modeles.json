@@ -1,0 +1,53 @@
+{
+  "n_train": 113754,
+  "n_test": 28439,
+  "taux_pluie_test": 0.2242,
+  "seuil_evalue": 0.5,
+  "lignes": [
+    {
+      "modele": "Baseline « toujours Non »",
+      "accuracy": 0.7758,
+      "precision": 0.0,
+      "rappel": 0.0,
+      "f1": 0.0,
+      "roc_auc": null,
+      "secondes_entrainement": 0.0
+    },
+    {
+      "modele": "Régression logistique",
+      "accuracy": 0.8494,
+      "precision": 0.7337,
+      "rappel": 0.5151,
+      "f1": 0.6053,
+      "roc_auc": 0.873,
+      "secondes_entrainement": 1.1
+    },
+    {
+      "modele": "Régression logistique (balanced)",
+      "accuracy": 0.7955,
+      "precision": 0.5299,
+      "rappel": 0.7795,
+      "f1": 0.6309,
+      "roc_auc": 0.8737,
+      "secondes_entrainement": 1.1
+    },
+    {
+      "modele": "Forêt aléatoire",
+      "accuracy": 0.8562,
+      "precision": 0.7734,
+      "rappel": 0.507,
+      "f1": 0.6125,
+      "roc_auc": 0.8887,
+      "secondes_entrainement": 20.8
+    },
+    {
+      "modele": "Gradient boosting",
+      "accuracy": 0.8575,
+      "precision": 0.757,
+      "rappel": 0.5366,
+      "f1": 0.6281,
+      "roc_auc": 0.8907,
+      "secondes_entrainement": 2.6
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "_source": "Docs/CALIBRATION_DRIFT.md — mesures reproductibles avec `make drift-demo`",
+  "seuil_retenu": 0.5,
+  "min_samples": 400,
+  "colonnes_suivies": 9,
+  "taille_reference": 5000,
+  "premier_essai": {
+    "n_observations": 400,
+    "commentaire": "trafic normal tiré du jeu d'entraînement lui-même : 3 colonnes sur 9 déclarées en dérive",
+    "colonnes": [
+      {"colonne": "Pressure3pm", "distance": 0.12, "seuil": 0.1, "derive": true},
+      {"colonne": "WindGustSpeed", "distance": 0.105, "seuil": 0.1, "derive": true},
+      {"colonne": "Location", "distance": 0.137, "seuil": 0.1, "derive": true},
+      {"colonne": "les six autres", "distance": 0.09, "seuil": 0.1, "derive": false}
+    ]
+  },
+  "distribution": {
+    "n_tirages_par_cas": 15,
+    "n_observations": 400,
+    "normal": {"min": 0.111, "median": 0.111, "max": 0.333},
+    "decale": {"min": 0.889, "median": 1.0, "max": 1.0},
+    "intervalle_valide": [0.34, 0.88]
+  },
+  "sensibilite_volume": [
+    {"n_observations": 50, "normal_max": 1.0, "normal_median": 0.78, "decale_min": 1.0, "exploitable": false},
+    {"n_observations": 100, "normal_max": 1.0, "normal_median": 0.72, "decale_min": 0.89, "exploitable": false},
+    {"n_observations": 200, "normal_max": 0.67, "normal_median": 0.44, "decale_min": 0.89, "exploitable": false},
+    {"n_observations": 400, "normal_max": 0.33, "normal_median": 0.22, "decale_min": 0.89, "exploitable": true},
+    {"n_observations": 800, "normal_max": 0.22, "normal_median": 0.0, "decale_min": 1.0, "exploitable": true},
+    {"n_observations": 1500, "normal_max": 0.11, "normal_median": 0.0, "decale_min": 1.0, "exploitable": true}
+  ],
+  "verification_finale": {
+    "normal": {"n": 500, "part_derive": 0.11, "taux_pluie_predit": 0.23},
+    "portland": {"n": 500, "part_derive": 0.78, "taux_pluie_predit": 0.35}
+  },
+  "station_decalee": {"nom": "Portland", "taux_pluie_pct": 36.55, "moyenne_dataset_pct": 22.42},
+  "alertes": [
+    {"nom": "ApiDown", "declencheur": "Prometheus n'arrive plus à interroger l'API", "delai": "2 min"},
+    {"nom": "ModelNotLoaded", "declencheur": "l'API répond mais ne sert aucun modèle", "delai": "5 min"},
+    {"nom": "HighErrorRate", "declencheur": "plus de 5 % de réponses en erreur", "delai": "5 min"},
+    {"nom": "HighLatency", "declencheur": "95e centile des prédictions au-delà d'une seconde", "delai": "10 min"},
+    {"nom": "DriftDetected", "declencheur": "le dernier job conclut à une dérive", "delai": "5 min"},
+    {"nom": "DriftJobStale", "declencheur": "plus d'exécution du job de dérive depuis 48 h", "delai": "—"}
+  ]
+}

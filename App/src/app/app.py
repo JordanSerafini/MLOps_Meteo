@@ -1,79 +1,128 @@
-"""Streamlit — site de display / démo. Consomme l'API (jamais le modèle en direct)."""
-import os
+"""Streamlit de démonstration et de soutenance — Rain in Australia.
 
-import requests
+Cinq onglets : la démonstration, puis une partie par membre de l'équipe, calée sur les quatre
+phases de la feuille de route. Le support de l'oral, c'est cette application : elle est vivante
+(elle interroge l'API réelle) là où des diapositives seraient mortes.
+
+Deux règles de construction, qui expliquent l'organisation du dossier :
+  - rien n'est calculé ici. Les chiffres viennent d'artefacts JSON versionnés (`artefacts/`),
+    la seule dépendance vivante est l'API d'inférence. Une démonstration qui entraîne un modèle
+    à chaud est une démonstration qui tombe le jour de l'oral ;
+  - un onglet par fichier dans `onglets/`, pour que quatre personnes puissent travailler leur
+    partie sans se marcher dessus.
+
+Lancement local : streamlit run App/src/app/app.py
+"""
 import streamlit as st
 
-API_URL = os.getenv("API_URL", "http://localhost:8000")
-API_USER = os.getenv("API_USER", "client")
-API_PASSWORD = os.getenv("API_PASSWORD", "")
+import api_client
+from onglets import donnees, industrialisation, modelisation, monitoring, prediction
+
+# À compléter avec vos prénoms : le nom s'affiche en tête de la partie et dans le plan.
+# La durée est indicative — 20 minutes à quatre, en gardant de la marge pour les questions.
+PARTIES = [
+    {
+        "cle": "prediction",
+        "titre": "Démonstration",
+        "intitule": "Une prédiction de bout en bout",
+        "presentateur": "toute l'équipe",
+        "minutes": 2,
+        "module": prediction,
+        "resume": "Le produit fini : le formulaire appelle l'API, qui interroge le modèle promu "
+                  "dans MLflow.",
+    },
+    {
+        "cle": "donnees",
+        "titre": "1 · Données",
+        "intitule": "Exploration, cible déséquilibrée et préprocessing",
+        "presentateur": "prénom 1",
+        "minutes": 4,
+        "module": donnees,
+        "resume": "145 460 relevés, 49 stations, 22 % de jours de pluie : pourquoi l'accuracy est "
+                  "un mauvais juge.",
+    },
+    {
+        "cle": "modelisation",
+        "titre": "2 · Modélisation",
+        "intitule": "Modèles, seuil de décision, MLflow et DVC",
+        "presentateur": "prénom 2",
+        "minutes": 4,
+        "module": modelisation,
+        "resume": "Quatre modèles se tiennent en quatre points ; le seuil de décision en vaut "
+                  "dix-sept.",
+    },
+    {
+        "cle": "industrialisation",
+        "titre": "3 · Industrialisation",
+        "intitule": "Microservices, orchestration, CI et sécurisation",
+        "presentateur": "prénom 3",
+        "minutes": 4,
+        "module": industrialisation,
+        "resume": "Neuf services, une responsabilité chacun, un reverse proxy et une API "
+                  "authentifiée.",
+    },
+    {
+        "cle": "monitoring",
+        "titre": "4 · Monitoring",
+        "intitule": "Métriques, détection de dérive et alertes",
+        "presentateur": "prénom 4",
+        "minutes": 5,
+        "module": monitoring,
+        "resume": "Comment un détecteur de dérive mal calibré nous a annoncé 78 % de dérive sur "
+                  "des données normales.",
+    },
+]
+
+st.set_page_config(page_title="Rain in Australia — MLOps", page_icon="🌧️", layout="wide")
 
 
-def jeton(rafraichir=False):
-    """Jeton gardé en session ; renouvelé seulement si l'API l'a rejeté."""
-    if rafraichir:
-        st.session_state.pop("jeton", None)
-    if "jeton" not in st.session_state:
-        r = requests.post(f"{API_URL}/token",
-                          data={"username": API_USER, "password": API_PASSWORD},
-                          timeout=10)
-        r.raise_for_status()
-        st.session_state["jeton"] = r.json()["access_token"]
-    return st.session_state["jeton"]
+def barre_laterale():
+    st.sidebar.title("🌧️ Rain in Australia")
+    st.sidebar.caption("Projet MLOps — prédire la pluie du lendemain sur 49 stations australiennes")
 
-
-def predire(charge):
-    r = requests.post(f"{API_URL}/predict", json=charge, timeout=10,
-                      headers={"Authorization": f"Bearer {jeton()}"})
-    if r.status_code == 401:
-        r = requests.post(f"{API_URL}/predict", json=charge, timeout=10,
-                          headers={"Authorization": f"Bearer {jeton(rafraichir=True)}"})
-    r.raise_for_status()
-    return r.json()
-
-st.set_page_config(page_title="Pluie en Australie", page_icon="🌧️")
-st.title("🌧️ Va-t-il pleuvoir demain ?")
-st.caption("Démo MLOps — modèle servi via l'API FastAPI (MLflow Model Registry)")
-
-# État de l'API / du modèle
-try:
-    h = requests.get(f"{API_URL}/health", timeout=3).json()
-    if h.get("model_loaded"):
-        st.sidebar.success(f"API OK — modèle v{h.get('model_version')}")
+    sante = api_client.sante()
+    if sante is None:
+        st.sidebar.error("API injoignable")
+        st.sidebar.caption(f"`{api_client.API_URL}`")
+    elif sante.get("model_loaded"):
+        st.sidebar.success(f"API en ligne — modèle v{sante.get('model_version')}")
+        st.sidebar.caption(f"seuil servi : {sante.get('decision_threshold')} · "
+                           f"`{sante.get('model_uri')}`")
     else:
-        st.sidebar.warning("API en ligne mais modèle non chargé (lancer l'entraînement).")
-    st.sidebar.caption(f"URI: {h.get('model_uri')}")
-except Exception as e:  # noqa: BLE001
-    st.sidebar.error(f"API injoignable : {e}")
+        st.sidebar.warning("API en ligne, aucun modèle chargé")
+        st.sidebar.caption("Lancer un entraînement, puis `POST /reload`.")
 
-with st.form("predict"):
-    c1, c2 = st.columns(2)
-    location = c1.text_input("Station (Location)", "Sydney")
-    month = c2.slider("Mois", 1, 12, 7)
-    humidity3pm = c1.slider("Humidité 15h (%)", 0, 100, 80)
-    sunshine = c2.slider("Ensoleillement (h)", 0.0, 14.5, 3.5)
-    pressure3pm = c1.slider("Pression 15h (hPa)", 977.0, 1040.0, 1008.0)
-    rainfall = c2.number_input("Pluie aujourd'hui (mm)", 0.0, 400.0, 12.0)
-    windgust = c1.slider("Rafale max (km/h)", 6, 135, 56)
-    cloud3pm = c2.slider("Nuages 15h (octas)", 0, 9, 8)
-    temp3pm = c1.slider("Température 15h (°C)", -5.0, 47.0, 16.0)
-    raintoday = c2.selectbox("A-t-il plu aujourd'hui ?", ["Yes", "No"], index=0)
-    submitted = st.form_submit_button("Prédire")
+    st.sidebar.divider()
+    st.sidebar.markdown("**Déroulé de l'oral**")
+    total = sum(p["minutes"] for p in PARTIES)
+    debut = 0
+    for partie in PARTIES:
+        fin = debut + partie["minutes"]
+        st.sidebar.markdown(
+            f"`{debut:02d}–{fin:02d}`  **{partie['titre']}** · {partie['presentateur']}"
+        )
+        debut = fin
+    st.sidebar.caption(f"{total} minutes de présentation, le reste pour les questions.")
 
-if submitted:
-    payload = {
-        "Location": location, "Month": month, "Humidity3pm": humidity3pm,
-        "Sunshine": sunshine, "Pressure3pm": pressure3pm, "Rainfall": rainfall,
-        "WindGustSpeed": windgust, "Cloud3pm": cloud3pm, "Temp3pm": temp3pm,
-        "RainToday": raintoday,
-    }
-    try:
-        out = predire(payload)
-        st.metric("Probabilité de pluie demain", f"{out['probability'] * 100:.1f}%")
-        if out["rain_tomorrow"]:
-            st.success("☔ Pluie probable demain")
-        else:
-            st.info("🌤️ Probablement sec demain")
-        st.caption(f"modèle v{out.get('model_version')}")
-    except Exception as e:  # noqa: BLE001
-        st.error(f"Erreur de prédiction : {e}")
+
+def entete(partie):
+    st.markdown(f"### {partie['intitule']}")
+    st.caption(f"{partie['titre']} · présenté par {partie['presentateur']} · "
+               f"≈ {partie['minutes']} min — {partie['resume']}")
+
+
+def main():
+    barre_laterale()
+    st.title("Va-t-il pleuvoir demain en Australie ?")
+    st.caption(
+        "Modèle de classification servi par une API FastAPI, entraînement suivi dans MLflow, "
+        "orchestration Airflow, monitoring Prometheus / Grafana et détection de dérive Evidently."
+    )
+    for onglet, partie in zip(st.tabs([p["titre"] for p in PARTIES]), PARTIES, strict=True):
+        with onglet:
+            entete(partie)
+            st.divider()
+            partie["module"].afficher()
+
+
+main()

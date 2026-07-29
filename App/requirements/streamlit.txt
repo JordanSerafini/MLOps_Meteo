@@ -1,2 +1,7 @@
 streamlit==1.40.1
 requests==2.32.3
+# pandas et altair arrivent avec streamlit, mais nos onglets les importent directement :
+# une dépendance utilisée en propre se déclare, sinon une montée de version de streamlit
+# peut la faire disparaître sans prévenir.
+pandas==2.2.3
+altair==5.4.1
