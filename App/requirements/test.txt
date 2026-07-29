@@ -1,6 +1,9 @@
 # Dépendances pour les tests (CI / local)
-# Inclut les dépendances de l'API + outils de test
+# Inclut les dépendances de l'API + celles du Streamlit + outils de test.
+# streamlit est nécessaire à test_app.py, qui rend les cinq onglets du support de
+# soutenance : c'est le seul moyen de détecter une régression d'affichage avant l'oral.
 -r api.txt
+-r streamlit.txt
 pytest==8.3.4
 httpx==0.28.1
 ruff==0.8.6

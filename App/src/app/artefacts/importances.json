@@ -1,0 +1,65 @@
+{
+  "modele": "Forêt aléatoire",
+  "variables": [
+    {
+      "variable": "Humidity3pm",
+      "importance": 0.1406
+    },
+    {
+      "variable": "Pressure3pm",
+      "importance": 0.0525
+    },
+    {
+      "variable": "Humidity9am",
+      "importance": 0.0482
+    },
+    {
+      "variable": "WindGustSpeed",
+      "importance": 0.0479
+    },
+    {
+      "variable": "Pressure9am",
+      "importance": 0.0478
+    },
+    {
+      "variable": "Sunshine",
+      "importance": 0.0469
+    },
+    {
+      "variable": "Temp3pm",
+      "importance": 0.0443
+    },
+    {
+      "variable": "MinTemp",
+      "importance": 0.0416
+    },
+    {
+      "variable": "MaxTemp",
+      "importance": 0.04
+    },
+    {
+      "variable": "Rainfall",
+      "importance": 0.0399
+    },
+    {
+      "variable": "Temp9am",
+      "importance": 0.0383
+    },
+    {
+      "variable": "Cloud3pm",
+      "importance": 0.0317
+    },
+    {
+      "variable": "WindSpeed3pm",
+      "importance": 0.0297
+    },
+    {
+      "variable": "WindSpeed9am",
+      "importance": 0.0275
+    },
+    {
+      "variable": "RainToday_No",
+      "importance": 0.025
+    }
+  ]
+}

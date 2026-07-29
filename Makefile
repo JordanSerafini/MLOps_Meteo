@@ -11,6 +11,7 @@ PROFILES := --profile train --profile orchestration --profile monitoring --profi
         build up down restart logs ps status \
         train reload predict test-api health \
         secrets install test lint fmt ci \
+        artefacts streamlit-local \
         airflow-up airflow-down airflow-logs \
         monitoring-up monitoring-down \
         drift drift-demo trafic \
@@ -77,15 +78,23 @@ predict:         ## une prédiction de démonstration (compte client)
 secrets:         ## génère App/.env et App/.env.api (FORCE=1 pour écraser)
 	$(VENV)/python App/scripts/generer_secrets.py $${FORCE:+--force}
 
+## ————— Support de soutenance (Streamlit) —————
+artefacts:       ## régénère les JSON lus par le Streamlit (entraîne les 4 modèles, ~1 min)
+	$(VENV)/python App/scripts/exporter_artefacts.py
+
+streamlit-local: ## lance le Streamlit hors Docker, contre une API déjà démarrée
+	cd App && API_URL=$${API_URL:-http://localhost:8000} \
+	  ../$(VENV)/streamlit run src/app/app.py
+
 ## ————— Qualité (local, via .venv) —————
 install:
 	$(VENV)/pip install -r App/requirements/test.txt
 
-lint:         
-	cd App && ../$(VENV)/ruff check src/
+lint:
+	cd App && ../$(VENV)/ruff check src/ scripts/ dags/
 
-fmt:          
-	cd App && ../$(VENV)/ruff check --fix src/
+fmt:
+	cd App && ../$(VENV)/ruff check --fix src/ scripts/ dags/
 
 test:            ## lance les tests unitaires (pytest)
 	cd App && ../$(VENV)/pytest src/tests/ -v --tb=short
