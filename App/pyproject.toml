@@ -1,0 +1,20 @@
+[tool.pytest.ini_options]
+testpaths = ["src/tests"]
+pythonpath = ["."]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::UserWarning"
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "BLE"]
+ignore = ["BLE001", "N806", "N803"]
+
+[tool.ruff.lint.isort]
+# Les modules du Streamlit sont importés à plat (streamlit ajoute le dossier du script au
+# sys.path, il n'y a pas de package) : sans ça ruff les prend pour des dépendances tierces.
+known-first-party = ["src", "api_client", "artefacts", "formats", "onglets"]

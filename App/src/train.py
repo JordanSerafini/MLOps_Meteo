@@ -16,8 +16,14 @@ from mlflow.models import infer_signature
 from mlflow.tracking import MlflowClient
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import (accuracy_score, classification_report, f1_score,
-                             precision_recall_curve, recall_score, roc_auc_score)
+from sklearn.metrics import (
+    accuracy_score,
+    classification_report,
+    f1_score,
+    precision_recall_curve,
+    recall_score,
+    roc_auc_score,
+)
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 
@@ -92,7 +98,7 @@ def main():
             "f1_rain": f1_score(y_test, pred),
             "roc_auc": roc_auc_score(y_test, proba),
         }
-        #! Seuils recommandés (le seuil 0.5 par défaut sous-détecte la pluie minoritaire >>> A MODIFIER APRES REVIEW EN TEAM!!!)
+        #! Seuils recommandés
         thr_reco = recommend_thresholds(y_test, proba, target_recall=0.70)
 
         mlflow.log_param("model_type", args.model)

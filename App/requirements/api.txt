@@ -5,3 +5,8 @@ numpy==1.26.4
 scikit-learn==1.5.2
 mlflow==2.16.2
 prometheus-fastapi-instrumentator==7.0.0
+# Authentification. bcrypt est appelé directement : passlib, que suggèrent la plupart
+# des exemples FastAPI, n'a pas bougé depuis 2020 et casse avec bcrypt >= 4.1.
+pyjwt==2.13.0
+bcrypt==5.0.0
+python-multipart==0.0.32

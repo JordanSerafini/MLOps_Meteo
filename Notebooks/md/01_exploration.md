@@ -1,10 +1,13 @@
-# Prévision de pluie en Australie — 1/3 · Exploration (EDA)
+# Prévision de pluie en Australie — 1/3 · Exploration
 
-Dataset Kaggle *Rain in Australia*. Cible : `RainTomorrow` (pluie demain).
+Dataset Kaggle *Rain in Australia* : dix ans de relevés quotidiens sur 49 stations. On cherche
+à prédire `RainTomorrow`, c'est-à-dire s'il tombera au moins 1 mm le lendemain.
 
-**Cette partie** : chargement, qualité des données, variable cible & déséquilibre, baselines, corrélations, dimensions géographique & saisonnière.
+Cette partie sert à comprendre les données avant de modéliser : ce qui manque, à quel point la
+cible est déséquilibrée, quelles variables portent de l'information, et quel score un modèle
+doit dépasser pour être utile.
 
-Suite : `02_preprocessing.ipynb` (préparation) puis `03_modelisation.ipynb` (modèles).
+Suite : `02_preprocessing.ipynb` puis `03_modelisation.ipynb`.
 
 ## 0. Setup & chargement des données
 
@@ -24,10 +27,6 @@ pd.set_option("display.max_columns", 30)
 RANDOM_STATE = 42
 ```
 
-    /home/tinkerbell/.local/lib/python3.12/site-packages/matplotlib/projections/__init__.py:63: UserWarning: Unable to import Axes3D. This may be due to multiple versions of Matplotlib being installed (e.g. as a system package and as a pip package). As a result, the 3D projection is not available.
-      warnings.warn("Unable to import Axes3D. This may be due to multiple versions of "
-
-
 
 ```python
 # Résolution robuste du chemin des données : fonctionne que le notebook soit
@@ -46,7 +45,7 @@ print(f"Dimensions    : {df.shape[0]:,} lignes × {df.shape[1]} colonnes")
 df.head()
 ```
 
-    Chargé depuis : ../Data/weatherAUS.csv
+    Chargé depuis : /home/tinkerbell/Desktop/MlOps_Meteo-Liora/Data/weatherAUS.csv
     Dimensions    : 145,460 lignes × 23 colonnes
 
 
@@ -233,10 +232,9 @@ df.head()
 
 
 
-## 1. Exploration des données (EDA)
+## 1. Structure et qualité
 
-On caractérise la structure, la qualité (valeurs manquantes), la variable cible et ses liens
-avec les variables explicatives, puis les dimensions géographique et saisonnière.
+Types, doublons, puis valeurs manquantes.
 
 
 ```python
@@ -323,19 +321,23 @@ missing_pct.round(2)
     RainToday         2.24
     WindSpeed3pm      2.11
     Humidity9am       1.82
-    WindSpeed9am      1.21
     Temp9am           1.21
+    WindSpeed9am      1.21
     MinTemp           1.02
     MaxTemp           0.87
     dtype: float64
 
 
 
-**Lecture.** Quatre colonnes sont très lacunaires : `Sunshine` (~48 %), `Evaporation` (~43 %),
-`Cloud3pm` (~41 %), `Cloud9am` (~38 %). Les autres restent sous ~10 %. La cible `RainTomorrow`
-est manquante sur ~2,2 % des lignes (ces lignes seront retirées). Plutôt que de **supprimer**
-`Sunshine`/`Cloud` (qui comptent parmi les meilleurs prédicteurs, cf. §1.3), on les **conservera
-et imputera** — au prix d'une incertitude assumée.
+Quatre colonnes sont très lacunaires : `Sunshine` (48 %), `Evaporation` (43 %), `Cloud3pm`
+(41 %) et `Cloud9am` (38 %). Les autres restent sous 10 %.
+
+La tentation serait de les supprimer. On va s'en garder : la section 1.4 montre que `Sunshine`
+et `Cloud3pm` sont justement les variables les mieux corrélées à la cible. Elles seront
+conservées et imputées, en gardant en tête que près d'une valeur sur deux sera reconstituée.
+
+`RainTomorrow` manque sur 2,2 % des lignes. Ces lignes ne servent à rien pour un apprentissage
+supervisé, elles seront retirées.
 
 ### 1.2 Variable cible & déséquilibre
 
@@ -372,13 +374,16 @@ print(f"\nTaux de base (Yes) = {base_rate:.2f}%  ->  classe fortement déséquil
     Taux de base (Yes) = 22.42%  ->  classe fortement déséquilibrée (~78/22).
 
 
-**Lecture.** Il pleut le lendemain dans environ **22 %** des cas. Le déséquilibre (~78/22) est
-important : l'*accuracy* seule sera trompeuse (un modèle disant toujours « non » atteint déjà ~78 %).
-On suivra donc surtout le **recall/F1 de la classe « pluie »**.
+Il pleut le lendemain dans 22 % des cas. Ce déséquilibre pèse sur tout le reste : un modèle
+qui répondrait systématiquement « non » afficherait déjà 78 % d'accuracy sans rien avoir appris.
 
-### 1.3 Baselines de référence
+On suivra donc le rappel et le F1 de la classe « pluie », pas l'accuracy globale.
 
-Avant tout modèle, on fixe deux repères simples — tout modèle « utile » doit les battre.
+### 1.3 Deux points de comparaison
+
+Avant de lancer un modèle, autant savoir ce qu'il doit battre. La première baseline répond
+toujours « non ». La seconde, dite de persistance, recopie la météo du jour : c'est ce que ferait
+quelqu'un sans aucune donnée, et en météo c'est étonnamment difficile à battre.
 
 
 ```python
@@ -405,9 +410,13 @@ print(f"  P(pluie demain | pas de pluie aujourd'hui) = {p_yes_if_today_no:.1f}%"
       P(pluie demain | pas de pluie aujourd'hui) = 15.2%
 
 
-**Lecture.** La barre à battre est ~**78 %** (toujours-Non) ou ~**76 %** (persistance). La pluie
-de la veille triple la probabilité de pluie le lendemain (~46 % vs ~15 %) : `RainToday` est informatif
-(et, comme `Rainfall`, à surveiller pour le risque de **fuite** si mal utilisé).
+La barre est à 78 % pour « toujours non » et 76 % pour la persistance. Autrement dit, un modèle
+à 80 % d'accuracy n'apporterait presque rien.
+
+Le détail est plus intéressant que le score : quand il a plu aujourd'hui, la probabilité de pluie
+demain passe à 46 %, contre 15 % sinon. `RainToday` porte donc une vraie information — c'est
+aussi une variable à surveiller, puisqu'elle dérive de `Rainfall` et pourrait créer une fuite si
+on l'utilisait mal.
 
 ### 1.4 Variables explicatives — corrélations avec la cible
 
@@ -462,10 +471,12 @@ corr.sort_values(key=np.abs, ascending=False).round(3)
 
 
 
-**Lecture.** Les prédicteurs les plus forts sont l'**ensoleillement** `Sunshine` (≈ −0,45),
-l'**humidité à 15 h** `Humidity3pm` (≈ +0,45), la **nébulosité** `Cloud3pm` (≈ +0,38) et la
-**pression** (≈ −0,23). Physiquement cohérent : moins de soleil + plus d'humidité/nuages + pression
-basse ⇒ pluie plus probable.
+Quatre variables se détachent : l'ensoleillement (−0,45), l'humidité de l'après-midi (+0,45),
+la nébulosité de l'après-midi (+0,38) et la pression (−0,23).
+
+Rien de surprenant physiquement : moins de soleil, plus d'humidité et de nuages, une pression qui
+baisse, et la pluie devient probable. Les mesures de 15 h sont plus prédictives que celles de 9 h,
+ce qui est cohérent avec un horizon de prévision de 24 h.
 
 
 ```python
@@ -486,7 +497,7 @@ plt.show()
     
 
 
-### 1.5 Dimensions géographique & saisonnière
+### 1.5 Géographie et saison
 
 
 ```python
@@ -523,6 +534,10 @@ print("Mois le + pluvieux:", int(rate_month.idxmax()), f"({rate_month.max():.1f}
     Mois le + pluvieux: 7 (26.9%) | + sec: 1 (19.3%)
 
 
-**Lecture.** Forte hétérogénéité géographique : de ~7 % (`Woomera`, `Uluru`, désert intérieur)
-à ~37 % (`Portland`, côte sud humide). Saisonnalité marquée : pic en **hiver austral** (juin–août,
-~26–27 %), creux en été (janvier, ~19 %). La station et le mois sont donc des features pertinentes.
+L'écart entre stations est considérable : de 7 % de jours suivis de pluie à Woomera et Uluru,
+en plein désert, à 37 % à Portland sur la côte sud. Un modèle global devra donc apprendre des
+régimes très différents, ce qui plaide pour garder `Location` comme variable.
+
+La saisonnalité est plus discrète mais nette : pic en hiver austral (juin à août, 26-27 %) et
+creux en janvier (19 %). De quoi justifier d'extraire le mois de la date, ce que fera le
+notebook suivant.

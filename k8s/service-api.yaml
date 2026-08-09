@@ -1,0 +1,44 @@
+# ─────────────────────────────────────────────────────────
+#  Service — expose l'API en interne au cluster
+# ─────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: rain-api-service
+  namespace: meteo-liora
+  labels:
+    app: rain-australia
+    component: api
+spec:
+  type: ClusterIP
+  selector:
+    app: rain-australia
+    component: api
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8000
+      protocol: TCP
+---
+# ─────────────────────────────────────────────────────────
+#  Service — accès externe (NodePort pour le dev / LoadBalancer en prod)
+# ─────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: rain-api-external
+  namespace: meteo-liora
+  labels:
+    app: rain-australia
+    component: api
+spec:
+  type: NodePort
+  selector:
+    app: rain-australia
+    component: api
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8000
+      nodePort: 30080
+      protocol: TCP

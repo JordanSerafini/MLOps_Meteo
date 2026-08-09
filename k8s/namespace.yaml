@@ -1,0 +1,9 @@
+# ─────────────────────────────────────────────────────────
+#  Namespace — isolation du projet
+# ─────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: meteo-liora
+  labels:
+    project: rain-australia

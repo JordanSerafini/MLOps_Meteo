@@ -1,0 +1,19 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+COPY requirements/drift.txt .
+RUN pip install --no-cache-dir -r drift.txt
+
+COPY src/ ./src/
+# Échantillon de référence embarqué : le job n'a pas besoin du CSV complet,
+# qui n'est de toute façon pas déployé sur le serveur.
+COPY reference/ ./reference/
+
+RUN useradd --create-home --uid 1000 appuser \
+ && mkdir -p /app/reports \
+ && chown -R appuser /app
+USER appuser
+
+# Job one-shot : compare le journal des prédictions aux données d'entraînement.
+ENTRYPOINT ["python", "-m", "src.drift"]

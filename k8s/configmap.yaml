@@ -1,0 +1,17 @@
+# ─────────────────────────────────────────────────────────
+#  ConfigMap — variables d'environnement partagées
+# ─────────────────────────────────────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rain-api-config
+  namespace: meteo-liora
+  labels:
+    app: rain-australia
+    component: api
+data:
+  MLFLOW_TRACKING_URI: "http://mlflow-service:5000"
+  MODEL_URI: "models:/rain-australia@champion"
+  MODEL_NAME: "rain-australia"
+  MODEL_ALIAS: "champion"
+  DECISION_THRESHOLD: "0.5"

@@ -1,0 +1,91 @@
+# docker-compose.prod.yml — surcharge de PRODUCTION (VM meteo-liora, 192.168.1.36)
+#
+# Déploiement (depuis ~/meteo-liora/ sur la VM) :
+#   docker compose --env-file .env.prod \
+#     -f docker-compose.yml -f docker-compose.prod.yml \
+#     --profile orchestration --profile monitoring up -d
+#
+# --env-file .env.prod alimente l'interpolation ${DECISION_THRESHOLD} / ${AIRFLOW_ADMIN_PASSWORD}
+# déjà présente dans docker-compose.yml. Le service `trainer` (profil train) n'est JAMAIS lancé
+# ici : l'entraînement est déporté sur le PC de dev, qui pousse le modèle au registry MLflow
+# du serveur (mode --serve-artifacts).
+services:
+  mlflow:
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          # Relevé de 512M : le conteneur tournait à 96 % de sa limite, à deux doigts
+          # de se faire tuer par le noyau.
+          memory: 768M
+
+  api:
+    restart: unless-stopped
+    # Le port est déclaré dans le fichier de base et piloté par API_BIND, qui vaut
+    # 0.0.0.0 dans .env.prod (le reverse proxy vit sur une autre VM). Le redéclarer
+    # ici créerait un second binding sur 8000 : compose concatène les listes de ports.
+    deploy:
+      resources:
+        limits:
+          memory: 1G   # marge pour le chargement du pipeline sklearn en mémoire
+
+  streamlit:
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  airflow:
+    restart: unless-stopped
+    environment:
+      # autorise le déclenchement du DAG via l'API REST en basic-auth (depuis le PC de dev)
+      AIRFLOW__API__AUTH_BACKENDS: "airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session"
+      # accès correct derrière le reverse proxy HTTPS (airflow.jordan-s.org)
+      AIRFLOW__WEBSERVER__ENABLE_PROXY_FIX: "True"
+      AIRFLOW__WEBSERVER__BASE_URL: "https://airflow.jordan-s.org"
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+
+  airflow-db:
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # Le monitoring vit sur une VM de 6 Go partagée avec Airflow : les limites sont
+  # serrées et la rétention Prometheus volontairement courte.
+  prometheus:
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=7d
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+
+  grafana:
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  alertmanager:
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+
+  pushgateway:
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 32M

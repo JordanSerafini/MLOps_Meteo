@@ -1,0 +1,130 @@
+{
+  "uid": "rain-predictions",
+  "title": "Prédictions et dérive",
+  "tags": ["meteo-liora"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Part de pluie prédite",
+      "description": "À comparer au taux de base du dataset d'entraînement (22 %). Un écart durable est un signal de dérive, ou d'un seuil de décision mal placé.",
+      "gridPos": { "h": 7, "w": 8, "x": 0, "y": 0 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "blue", "value": null },
+              { "color": "green", "value": 0.15 },
+              { "color": "orange", "value": 0.35 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rain_predictions_total{outcome=\"rain\"}) / clamp_min(sum(rain_predictions_total), 1)"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Pluie / pas de pluie (par minute)",
+      "gridPos": { "h": 7, "w": 16, "x": 8, "y": 0 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(rain_predictions_total[5m])) by (outcome)",
+          "legendFormat": "{{outcome}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Distribution des probabilités prédites (quantiles)",
+      "description": "Un déplacement de la médiane des probabilités précède souvent la dérive détectée sur les variables d'entrée.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 7 },
+      "fieldConfig": { "defaults": { "min": 0, "max": 1 }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.50, sum(rate(rain_prediction_proba_bucket[10m])) by (le))",
+          "legendFormat": "médiane"
+        },
+        {
+          "refId": "B",
+          "expr": "histogram_quantile(0.90, sum(rate(rain_prediction_proba_bucket[10m])) by (le))",
+          "legendFormat": "9e décile"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Dérive détectée",
+      "description": "Sortie du dernier job Evidently. 1 = le test global conclut à une dérive du jeu de données.",
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 7 },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": { "text": "non", "color": "green", "index": 0 },
+                "1": { "text": "OUI", "color": "red", "index": 1 }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [{ "refId": "A", "expr": "max(rain_dataset_drift)" }]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Part de colonnes en dérive",
+      "description": "Seuil de déclenchement du réentraînement : 0,50 (calibré, voir Docs/CALIBRATION_DRIFT.md).",
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 7 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "custom": {
+            "thresholdsStyle": { "mode": "line" }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 0.5 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        { "refId": "A", "expr": "rain_share_drifted_columns", "legendFormat": "part en dérive" }
+      ]
+    }
+  ]
+}

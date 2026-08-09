@@ -1,8 +1,9 @@
-# Prévision de pluie en Australie — 3/3 · Modélisation & évaluation
+# Prévision de pluie en Australie — 3/3 · Modélisation
 
-**Cette partie** : Régression Logistique, Random Forest (+ variante `balanced`), comparatif vs baselines, conclusions & pistes MLOps.
+Régression logistique, forêt aléatoire et gradient boosting, comparés aux baselines du
+notebook 1. On termine sur le choix du seuil de décision, qui est le vrai levier métier ici.
 
-> **Notebook indépendant** — il recharge les données depuis zéro (chaque partie s'exécute seule). Voir aussi : `01_exploration.ipynb`, `02_preprocessing.ipynb`, `03_modelisation.ipynb`.
+Ce notebook se relance seul : il reconstruit le préprocessing du notebook 2.
 
 
 ```python
@@ -19,10 +20,6 @@ sns.set_theme(style="whitegrid")
 pd.set_option("display.max_columns", 30)
 RANDOM_STATE = 42
 ```
-
-    /home/tinkerbell/.local/lib/python3.12/site-packages/matplotlib/projections/__init__.py:63: UserWarning: Unable to import Axes3D. This may be due to multiple versions of Matplotlib being installed (e.g. as a system package and as a pip package). As a result, the 3D projection is not available.
-      warnings.warn("Unable to import Axes3D. This may be due to multiple versions of "
-
 
 
 ```python
@@ -42,7 +39,7 @@ print(f"Dimensions    : {df.shape[0]:,} lignes × {df.shape[1]} colonnes")
 df.head()
 ```
 
-    Chargé depuis : ../Data/weatherAUS.csv
+    Chargé depuis : /home/tinkerbell/Desktop/MlOps_Meteo-Liora/Data/weatherAUS.csv
     Dimensions    : 145,460 lignes × 23 colonnes
 
 
@@ -229,8 +226,9 @@ df.head()
 
 
 
-### Rappel — préprocessing
-On reconstruit ici le pipeline de préparation (détaillé dans `02_preprocessing.ipynb`) pour que ce notebook soit exécutable seul.
+## 1. Préprocessing
+
+Repris tel quel du notebook 2 (voir ce dernier pour le détail et la question de la fuite).
 
 
 ```python
@@ -286,8 +284,7 @@ preprocessor
 
 <style>#sk-container-id-1 {
   /* Definition of color scheme common for light and dark mode */
-  --sklearn-color-text: #000;
-  --sklearn-color-text-muted: #666;
+  --sklearn-color-text: black;
   --sklearn-color-line: gray;
   /* Definition of color scheme for unfitted estimators */
   --sklearn-color-unfitted-level-0: #fff5e6;
@@ -299,21 +296,20 @@ preprocessor
   --sklearn-color-fitted-level-1: #d4ebff;
   --sklearn-color-fitted-level-2: #b3dbfd;
   --sklearn-color-fitted-level-3: cornflowerblue;
-}
 
-#sk-container-id-1.light {
   /* Specific color for light theme */
-  --sklearn-color-text-on-default-background: black;
-  --sklearn-color-background: white;
-  --sklearn-color-border-box: black;
+  --sklearn-color-text-on-default-background: var(--sg-text-color, var(--theme-code-foreground, var(--jp-content-font-color1, black)));
+  --sklearn-color-background: var(--sg-background-color, var(--theme-background, var(--jp-layout-color0, white)));
+  --sklearn-color-border-box: var(--sg-text-color, var(--theme-code-foreground, var(--jp-content-font-color1, black)));
   --sklearn-color-icon: #696969;
-}
 
-#sk-container-id-1.dark {
-  --sklearn-color-text-on-default-background: white;
-  --sklearn-color-background: #111;
-  --sklearn-color-border-box: white;
-  --sklearn-color-icon: #878787;
+  @media (prefers-color-scheme: dark) {
+    /* Redefinition of color scheme for dark theme */
+    --sklearn-color-text-on-default-background: var(--sg-text-color, var(--theme-code-foreground, var(--jp-content-font-color1, white)));
+    --sklearn-color-background: var(--sg-background-color, var(--theme-background, var(--jp-layout-color0, #111)));
+    --sklearn-color-border-box: var(--sg-text-color, var(--theme-code-foreground, var(--jp-content-font-color1, white)));
+    --sklearn-color-icon: #878787;
+  }
 }
 
 #sk-container-id-1 {
@@ -433,21 +429,12 @@ clickable and can be expanded/collapsed.
 /* Toggleable label */
 #sk-container-id-1 label.sk-toggleable__label {
   cursor: pointer;
-  display: flex;
+  display: block;
   width: 100%;
   margin-bottom: 0;
   padding: 0.5em;
   box-sizing: border-box;
   text-align: center;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5em;
-}
-
-#sk-container-id-1 label.sk-toggleable__label .caption {
-  font-size: 0.6rem;
-  font-weight: lighter;
-  color: var(--sklearn-color-text-muted);
 }
 
 #sk-container-id-1 label.sk-toggleable__label-arrow:before {
@@ -465,7 +452,9 @@ clickable and can be expanded/collapsed.
 /* Toggleable content - dropdown */
 
 #sk-container-id-1 div.sk-toggleable__content {
-  display: none;
+  max-height: 0;
+  max-width: 0;
+  overflow: hidden;
   text-align: left;
   /* unfitted */
   background-color: var(--sklearn-color-unfitted-level-0);
@@ -491,9 +480,9 @@ clickable and can be expanded/collapsed.
 
 #sk-container-id-1 input.sk-toggleable__control:checked~div.sk-toggleable__content {
   /* Expand drop-down */
-  display: block;
-  width: 100%;
-  overflow: visible;
+  max-height: 200px;
+  max-width: 100%;
+  overflow: auto;
 }
 
 #sk-container-id-1 input.sk-toggleable__control:checked~label.sk-toggleable__label-arrow:before {
@@ -547,6 +536,7 @@ clickable and can be expanded/collapsed.
 #sk-container-id-1 div.sk-label label {
   font-family: monospace;
   font-weight: bold;
+  display: inline-block;
   line-height: 1.2em;
 }
 
@@ -592,25 +582,23 @@ a:visited.sk-estimator-doc-link {
   font-size: smaller;
   line-height: 1em;
   font-family: monospace;
-  background-color: var(--sklearn-color-unfitted-level-0);
+  background-color: var(--sklearn-color-background);
   border-radius: 1em;
   height: 1em;
   width: 1em;
   text-decoration: none !important;
-  margin-left: 0.5em;
-  text-align: center;
+  margin-left: 1ex;
   /* unfitted */
-  border: var(--sklearn-color-unfitted-level-3) 1pt solid;
-  color: var(--sklearn-color-unfitted-level-3);
+  border: var(--sklearn-color-unfitted-level-1) 1pt solid;
+  color: var(--sklearn-color-unfitted-level-1);
 }
 
 .sk-estimator-doc-link.fitted,
 a:link.sk-estimator-doc-link.fitted,
 a:visited.sk-estimator-doc-link.fitted {
   /* fitted */
-  background-color: var(--sklearn-color-fitted-level-0);
-  border: var(--sklearn-color-fitted-level-3) 1pt solid;
-  color: var(--sklearn-color-fitted-level-3);
+  border: var(--sklearn-color-fitted-level-1) 1pt solid;
+  color: var(--sklearn-color-fitted-level-1);
 }
 
 /* On hover */
@@ -620,8 +608,7 @@ div.sk-label-container:hover .sk-estimator-doc-link:hover,
 .sk-estimator-doc-link:hover {
   /* unfitted */
   background-color: var(--sklearn-color-unfitted-level-3);
-  border: var(--sklearn-color-fitted-level-0) 1pt solid;
-  color: var(--sklearn-color-unfitted-level-0);
+  color: var(--sklearn-color-background);
   text-decoration: none;
 }
 
@@ -631,8 +618,7 @@ div.sk-label-container:hover .sk-estimator-doc-link.fitted:hover,
 .sk-estimator-doc-link.fitted:hover {
   /* fitted */
   background-color: var(--sklearn-color-fitted-level-3);
-  border: var(--sklearn-color-fitted-level-0) 1pt solid;
-  color: var(--sklearn-color-fitted-level-0);
+  color: var(--sklearn-color-background);
   text-decoration: none;
 }
 
@@ -672,7 +658,7 @@ div.sk-label-container:hover .sk-estimator-doc-link.fitted:hover,
   font-size: 1rem;
   line-height: 1em;
   font-family: monospace;
-  background-color: var(--sklearn-color-unfitted-level-0);
+  background-color: var(--sklearn-color-background);
   border-radius: 1rem;
   height: 1rem;
   width: 1rem;
@@ -684,7 +670,6 @@ div.sk-label-container:hover .sk-estimator-doc-link.fitted:hover,
 
 #sk-container-id-1 a.estimator_doc_link.fitted {
   /* fitted */
-  background-color: var(--sklearn-color-fitted-level-0);
   border: var(--sklearn-color-fitted-level-1) 1pt solid;
   color: var(--sklearn-color-fitted-level-1);
 }
@@ -701,140 +686,7 @@ div.sk-label-container:hover .sk-estimator-doc-link.fitted:hover,
   /* fitted */
   background-color: var(--sklearn-color-fitted-level-3);
 }
-
-.estimator-table {
-    font-family: monospace;
-}
-
-.estimator-table summary {
-    padding: .5rem;
-    cursor: pointer;
-}
-
-.estimator-table summary::marker {
-    font-size: 0.7rem;
-}
-
-.estimator-table details[open] {
-    padding-left: 0.1rem;
-    padding-right: 0.1rem;
-    padding-bottom: 0.3rem;
-}
-
-.estimator-table .parameters-table {
-    margin-left: auto !important;
-    margin-right: auto !important;
-    margin-top: 0;
-}
-
-.estimator-table .parameters-table tr:nth-child(odd) {
-    background-color: #fff;
-}
-
-.estimator-table .parameters-table tr:nth-child(even) {
-    background-color: #f6f6f6;
-}
-
-.estimator-table .parameters-table tr:hover {
-    background-color: #e0e0e0;
-}
-
-.estimator-table table td {
-    border: 1px solid rgba(106, 105, 104, 0.232);
-}
-
-/*
-    `table td`is set in notebook with right text-align.
-    We need to overwrite it.
-*/
-.estimator-table table td.param {
-    text-align: left;
-    position: relative;
-    padding: 0;
-}
-
-.user-set td {
-    color:rgb(255, 94, 0);
-    text-align: left !important;
-}
-
-.user-set td.value {
-    color:rgb(255, 94, 0);
-    background-color: transparent;
-}
-
-.default td {
-    color: black;
-    text-align: left !important;
-}
-
-.user-set td i,
-.default td i {
-    color: black;
-}
-
-/*
-    Styles for parameter documentation links
-    We need styling for visited so jupyter doesn't overwrite it
-*/
-a.param-doc-link,
-a.param-doc-link:link,
-a.param-doc-link:visited {
-    text-decoration: underline dashed;
-    text-underline-offset: .3em;
-    color: inherit;
-    display: block;
-    padding: .5em;
-}
-
-/* "hack" to make the entire area of the cell containing the link clickable */
-a.param-doc-link::before {
-    position: absolute;
-    content: "";
-    inset: 0;
-}
-
-.param-doc-description {
-    display: none;
-    position: absolute;
-    z-index: 9999;
-    left: 0;
-    padding: .5ex;
-    margin-left: 1.5em;
-    color: var(--sklearn-color-text);
-    box-shadow: .3em .3em .4em #999;
-    width: max-content;
-    text-align: left;
-    max-height: 10em;
-    overflow-y: auto;
-
-    /* unfitted */
-    background: var(--sklearn-color-unfitted-level-0);
-    border: thin solid var(--sklearn-color-unfitted-level-3);
-}
-
-/* Fitted state for parameter tooltips */
-.fitted .param-doc-description {
-    /* fitted */
-    background: var(--sklearn-color-fitted-level-0);
-    border: thin solid var(--sklearn-color-fitted-level-3);
-}
-
-.param-doc-link:hover .param-doc-description {
-    display: block;
-}
-
-.copy-paste-icon {
-    background-image: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA0NDggNTEyIj48IS0tIUZvbnQgQXdlc29tZSBGcmVlIDYuNy4yIGJ5IEBmb250YXdlc29tZSAtIGh0dHBzOi8vZm9udGF3ZXNvbWUuY29tIExpY2Vuc2UgLSBodHRwczovL2ZvbnRhd2Vzb21lLmNvbS9saWNlbnNlL2ZyZWUgQ29weXJpZ2h0IDIwMjUgRm9udGljb25zLCBJbmMuLS0+PHBhdGggZD0iTTIwOCAwTDMzMi4xIDBjMTIuNyAwIDI0LjkgNS4xIDMzLjkgMTQuMWw2Ny45IDY3LjljOSA5IDE0LjEgMjEuMiAxNC4xIDMzLjlMNDQ4IDMzNmMwIDI2LjUtMjEuNSA0OC00OCA0OGwtMTkyIDBjLTI2LjUgMC00OC0yMS41LTQ4LTQ4bDAtMjg4YzAtMjYuNSAyMS41LTQ4IDQ4LTQ4ek00OCAxMjhsODAgMCAwIDY0LTY0IDAgMCAyNTYgMTkyIDAgMC0zMiA2NCAwIDAgNDhjMCAyNi41LTIxLjUgNDgtNDggNDhMNDggNTEyYy0yNi41IDAtNDgtMjEuNS00OC00OEwwIDE3NmMwLTI2LjUgMjEuNS00OCA0OC00OHoiLz48L3N2Zz4=);
-    background-repeat: no-repeat;
-    background-size: 14px 14px;
-    background-position: 0;
-    display: inline-block;
-    width: 14px;
-    height: 14px;
-    cursor: pointer;
-}
-</style><body><div id="sk-container-id-1" class="sk-top-container"><div class="sk-text-repr-fallback"><pre>ColumnTransformer(transformers=[(&#x27;num&#x27;,
+</style><div id="sk-container-id-1" class="sk-top-container"><div class="sk-text-repr-fallback"><pre>ColumnTransformer(transformers=[(&#x27;num&#x27;,
                                  Pipeline(steps=[(&#x27;imputer&#x27;,
                                                   SimpleImputer(strategy=&#x27;median&#x27;)),
                                                  (&#x27;scaler&#x27;, StandardScaler())]),
@@ -850,684 +702,40 @@ a.param-doc-link::before {
                                                  (&#x27;onehot&#x27;,
                                                   OneHotEncoder(handle_unknown=&#x27;ignore&#x27;))]),
                                  [&#x27;Location&#x27;, &#x27;WindGustDir&#x27;, &#x27;WindDir9am&#x27;,
-                                  &#x27;WindDir3pm&#x27;, &#x27;RainToday&#x27;, &#x27;Month&#x27;])])</pre><b>In a Jupyter environment, please rerun this cell to show the HTML representation or trust the notebook. <br />On GitHub, the HTML representation is unable to render, please try loading this page with nbviewer.org.</b></div><div class="sk-container" hidden><div class="sk-item sk-dashed-wrapped"><div class="sk-label-container"><div class="sk-label  sk-toggleable"><input class="sk-toggleable__control sk-hidden--visually" id="sk-estimator-id-1" type="checkbox" ><label for="sk-estimator-id-1" class="sk-toggleable__label  sk-toggleable__label-arrow"><div><div>ColumnTransformer</div></div><div><a class="sk-estimator-doc-link " rel="noreferrer" target="_blank" href="https://scikit-learn.org/1.8/modules/generated/sklearn.compose.ColumnTransformer.html">?<span>Documentation for ColumnTransformer</span></a><span class="sk-estimator-doc-link ">i<span>Not fitted</span></span></div></label><div class="sk-toggleable__content " data-param-prefix="">
-        <div class="estimator-table">
-            <details>
-                <summary>Parameters</summary>
-                <table class="parameters-table">
-                  <tbody>
-
-        <tr class="user-set">
-            <td><i class="copy-paste-icon"
-                 onclick="copyToClipboard('transformers',
-                          this.parentElement.nextElementSibling)"
-            ></i></td>
-            <td class="param">
-        <a class="param-doc-link"
-            rel="noreferrer" target="_blank" href="https://scikit-learn.org/1.8/modules/generated/sklearn.compose.ColumnTransformer.html#:~:text=transformers,-list%20of%20tuples">
-            transformers
-            <span class="param-doc-description">transformers: list of tuples<br><br>List of (name, transformer, columns) tuples specifying the<br>transformer objects to be applied to subsets of the data.<br><br>name : str<br>    Like in Pipeline and FeatureUnion, this allows the transformer and<br>    its parameters to be set using ``set_params`` and searched in grid<br>    search.<br>transformer : {'drop', 'passthrough'} or estimator<br>    Estimator must support :term:`fit` and :term:`transform`.<br>    Special-cased strings 'drop' and 'passthrough' are accepted as<br>    well, to indicate to drop the columns or to pass them through<br>    untransformed, respectively.<br>columns :  str, array-like of str, int, array-like of int,                 array-like of bool, slice or callable<br>    Indexes the data on its second axis. Integers are interpreted as<br>    positional columns, while strings can reference DataFrame columns<br>    by name.  A scalar string or int should be used where<br>    ``transformer`` expects X to be a 1d array-like (vector),<br>    otherwise a 2d array will be passed to the transformer.<br>    A callable is passed the input data `X` and can return any of the<br>    above. To select multiple columns by name or dtype, you can use<br>    :obj:`make_column_selector`.</span>
-        </a>
-    </td>
-            <td class="value">[(&#x27;num&#x27;, ...), (&#x27;cat&#x27;, ...)]</td>
-        </tr>
-
-
-        <tr class="default">
-            <td><i class="copy-paste-icon"
-                 onclick="copyToClipboard('remainder',
-                          this.parentElement.nextElementSibling)"
-            ></i></td>
-            <td class="param">
-        <a class="param-doc-link"
-            rel="noreferrer" target="_blank" href="https://scikit-learn.org/1.8/modules/generated/sklearn.compose.ColumnTransformer.html#:~:text=remainder,-%7B%27drop%27%2C%20%27passthrough%27%7D%20or%20estimator%2C%20default%3D%27drop%27">
-            remainder
-            <span class="param-doc-description">remainder: {'drop', 'passthrough'} or estimator, default='drop'<br><br>By default, only the specified columns in `transformers` are<br>transformed and combined in the output, and the non-specified<br>columns are dropped. (default of ``'drop'``).<br>By specifying ``remainder='passthrough'``, all remaining columns that<br>were not specified in `transformers`, but present in the data passed<br>to `fit` will be automatically passed through. This subset of columns<br>is concatenated with the output of the transformers. For dataframes,<br>extra columns not seen during `fit` will be excluded from the output<br>of `transform`.<br>By setting ``remainder`` to be an estimator, the remaining<br>non-specified columns will use the ``remainder`` estimator. The<br>estimator must support :term:`fit` and :term:`transform`.<br>Note that using this feature requires that the DataFrame columns<br>input at :term:`fit` and :term:`transform` have identical order.</span>
-        </a>
-    </td>
-            <td class="value">&#x27;drop&#x27;</td>
-        </tr>
-
-
-        <tr class="default">
-            <td><i class="copy-paste-icon"
-                 onclick="copyToClipboard('sparse_threshold',
-                          this.parentElement.nextElementSibling)"
-            ></i></td>
-            <td class="param">
-        <a class="param-doc-link"
-            rel="noreferrer" target="_blank" href="https://scikit-learn.org/1.8/modules/generated/sklearn.compose.ColumnTransformer.html#:~:text=sparse_threshold,-float%2C%20default%3D0.3">
-            sparse_threshold
-            <span class="param-doc-description">sparse_threshold: float, default=0.3<br><br>If the output of the different transformers contains sparse matrices,<br>these will be stacked as a sparse matrix if the overall density is<br>lower than this value. Use ``sparse_threshold=0`` to always return<br>dense.  When the transformed output consists of all dense data, the<br>stacked result will be dense, and this keyword will be ignored.</span>
-        </a>
-    </td>
-            <td class="value">0.3</td>
-        </tr>
-
-
-        <tr class="default">
-            <td><i class="copy-paste-icon"
-                 onclick="copyToClipboard('n_jobs',
-                          this.parentElement.nextElementSibling)"
-            ></i></td>
-            <td class="param">
-        <a class="param-doc-link"
-            rel="noreferrer" target="_blank" href="https://scikit-learn.org/1.8/modules/generated/sklearn.compose.ColumnTransformer.html#:~:text=n_jobs,-int%2C%20default%3DNone">
-            n_jobs
-            <span class="param-doc-description">n_jobs: int, default=None<br><br>Number of jobs to run in parallel.<br>``None`` means 1 unless in a :obj:`joblib.parallel_backend` context.<br>``-1`` means using all processors. See :term:`Glossary <n_jobs>`<br>for more details.</span>
-        </a>
-    </td>
-            <td class="value">None</td>
-        </tr>
-
-
-        <tr class="default">
-            <td><i class="copy-paste-icon"
-                 onclick="copyToClipboard('transformer_weights',
-                          this.parentElement.nextElementSibling)"
-            ></i></td>
-            <td class="param">
-        <a class="param-doc-link"
-            rel="noreferrer" target="_blank" href="https://scikit-learn.org/1.8/modules/generated/sklearn.compose.ColumnTransformer.html#:~:text=transformer_weights,-dict%2C%20default%3DNone">
-            transformer_weights
-            <span class="param-doc-description">transformer_weights: dict, default=None<br><br>Multiplicative weights for features per transformer. The output of the<br>transformer is multiplied by these weights. Keys are transformer names,<br>values the weights.</span>
-        </a>
-    </td>
-            <td class="value">None</td>
-        </tr>
-
-
-        <tr class="default">
-            <td><i class="copy-paste-icon"
-                 onclick="copyToClipboard('verbose',
-                          this.parentElement.nextElementSibling)"
-            ></i></td>
-            <td class="param">
-        <a class="param-doc-link"
-            rel="noreferrer" target="_blank" href="https://scikit-learn.org/1.8/modules/generated/sklearn.compose.ColumnTransformer.html#:~:text=verbose,-bool%2C%20default%3DFalse">
-            verbose
-            <span class="param-doc-description">verbose: bool, default=False<br><br>If True, the time elapsed while fitting each transformer will be<br>printed as it is completed.</span>
-        </a>
-    </td>
-            <td class="value">False</td>
-        </tr>
-
-
-        <tr class="default">
-            <td><i class="copy-paste-icon"
-                 onclick="copyToClipboard('verbose_feature_names_out',
-                          this.parentElement.nextElementSibling)"
-            ></i></td>
-            <td class="param">
-        <a class="param-doc-link"
-            rel="noreferrer" target="_blank" href="https://scikit-learn.org/1.8/modules/generated/sklearn.compose.ColumnTransformer.html#:~:text=verbose_feature_names_out,-bool%2C%20str%20or%20Callable%5B%5Bstr%2C%20str%5D%2C%20str%5D%2C%20default%3DTrue">
-            verbose_feature_names_out
-            <span class="param-doc-description">verbose_feature_names_out: bool, str or Callable[[str, str], str], default=True<br><br>- If True, :meth:`ColumnTransformer.get_feature_names_out` will prefix<br>  all feature names with the name of the transformer that generated that<br>  feature. It is equivalent to setting<br>  `verbose_feature_names_out="{transformer_name}__{feature_name}"`.<br>- If False, :meth:`ColumnTransformer.get_feature_names_out` will not<br>  prefix any feature names and will error if feature names are not<br>  unique.<br>- If ``Callable[[str, str], str]``,<br>  :meth:`ColumnTransformer.get_feature_names_out` will rename all the features<br>  using the name of the transformer. The first argument of the callable is the<br>  transformer name and the second argument is the feature name. The returned<br>  string will be the new feature name.<br>- If ``str``, it must be a string ready for formatting. The given string will<br>  be formatted using two field names: ``transformer_name`` and ``feature_name``.<br>  e.g. ``"{feature_name}__{transformer_name}"``. See :meth:`str.format` method<br>  from the standard library for more info.<br><br>.. versionadded:: 1.0<br><br>.. versionchanged:: 1.6<br>    `verbose_feature_names_out` can be a callable or a string to be formatted.</span>
-        </a>
-    </td>
-            <td class="value">True</td>
-        </tr>
-
-
-        <tr class="default">
-            <td><i class="copy-paste-icon"
-                 onclick="copyToClipboard('force_int_remainder_cols',
-                          this.parentElement.nextElementSibling)"
-            ></i></td>
-            <td class="param">
-        <a class="param-doc-link"
-            rel="noreferrer" target="_blank" href="https://scikit-learn.org/1.8/modules/generated/sklearn.compose.ColumnTransformer.html#:~:text=force_int_remainder_cols,-bool%2C%20default%3DFalse">
-            force_int_remainder_cols
-            <span class="param-doc-description">force_int_remainder_cols: bool, default=False<br><br>This parameter has no effect.<br><br>.. note::<br>    If you do not access the list of columns for the remainder columns<br>    in the `transformers_` fitted attribute, you do not need to set<br>    this parameter.<br><br>.. versionadded:: 1.5<br><br>.. versionchanged:: 1.7<br>   The default value for `force_int_remainder_cols` will change from<br>   `True` to `False` in version 1.7.<br><br>.. deprecated:: 1.7<br>   `force_int_remainder_cols` is deprecated and will be removed in 1.9.</span>
-        </a>
-    </td>
-            <td class="value">&#x27;deprecated&#x27;</td>
-        </tr>
-
-                  </tbody>
-                </table>
-            </details>
-        </div>
-    </div></div></div><div class="sk-parallel"><div class="sk-parallel-item"><div class="sk-item"><div class="sk-label-container"><div class="sk-label  sk-toggleable"><input class="sk-toggleable__control sk-hidden--visually" id="sk-estimator-id-2" type="checkbox" ><label for="sk-estimator-id-2" class="sk-toggleable__label  sk-toggleable__label-arrow"><div><div>num</div></div></label><div class="sk-toggleable__content " data-param-prefix="num__"><pre>[&#x27;MinTemp&#x27;, &#x27;MaxTemp&#x27;, &#x27;Rainfall&#x27;, &#x27;Evaporation&#x27;, &#x27;Sunshine&#x27;, &#x27;WindGustSpeed&#x27;, &#x27;WindSpeed9am&#x27;, &#x27;WindSpeed3pm&#x27;, &#x27;Humidity9am&#x27;, &#x27;Humidity3pm&#x27;, &#x27;Pressure9am&#x27;, &#x27;Pressure3pm&#x27;, &#x27;Cloud9am&#x27;, &#x27;Cloud3pm&#x27;, &#x27;Temp9am&#x27;, &#x27;Temp3pm&#x27;]</pre></div></div></div><div class="sk-serial"><div class="sk-item"><div class="sk-serial"><div class="sk-item"><div class="sk-estimator  sk-toggleable"><input class="sk-toggleable__control sk-hidden--visually" id="sk-estimator-id-3" type="checkbox" ><label for="sk-estimator-id-3" class="sk-toggleable__label  sk-toggleable__label-arrow"><div><div>SimpleImputer</div></div><div><a class="sk-estimator-doc-link " rel="noreferrer" target="_blank" href="https://scikit-learn.org/1.8/modules/generated/sklearn.impute.SimpleImputer.html">?<span>Documentation for SimpleImputer</span></a></div></label><div class="sk-toggleable__content " data-param-prefix="num__imputer__">
-        <div class="estimator-table">
-            <details>
-                <summary>Parameters</summary>
-                <table class="parameters-table">
-                  <tbody>
-
-        <tr class="default">
-            <td><i class="copy-paste-icon"
-                 onclick="copyToClipboard('missing_values',
-                          this.parentElement.nextElementSibling)"
-            ></i></td>
-            <td class="param">
-        <a class="param-doc-link"
-            rel="noreferrer" target="_blank" href="https://scikit-learn.org/1.8/modules/generated/sklearn.impute.SimpleImputer.html#:~:text=missing_values,-int%2C%20float%2C%20str%2C%20np.nan%2C%20None%20or%20pandas.NA%2C%20default%3Dnp.nan">
-            missing_values
-            <span class="param-doc-description">missing_values: int, float, str, np.nan, None or pandas.NA, default=np.nan<br><br>The placeholder for the missing values. All occurrences of<br>`missing_values` will be imputed. For pandas' dataframes with<br>nullable integer dtypes with missing values, `missing_values`<br>can be set to either `np.nan` or `pd.NA`.</span>
-        </a>
-    </td>
-            <td class="value">nan</td>
-        </tr>
-
-
-        <tr class="user-set">
-            <td><i class="copy-paste-icon"
-                 onclick="copyToClipboard('strategy',
-                          this.parentElement.nextElementSibling)"
-            ></i></td>
-            <td class="param">
-        <a class="param-doc-link"
-            rel="noreferrer" target="_blank" href="https://scikit-learn.org/1.8/modules/generated/sklearn.impute.SimpleImputer.html#:~:text=strategy,-str%20or%20Callable%2C%20default%3D%27mean%27">
-            strategy
-            <span class="param-doc-description">strategy: str or Callable, default='mean'<br><br>The imputation strategy.<br><br>- If "mean", then replace missing values using the mean along<br>  each column. Can only be used with numeric data.<br>- If "median", then replace missing values using the median along<br>  each column. Can only be used with numeric data.<br>- If "most_frequent", then replace missing using the most frequent<br>  value along each column. Can be used with strings or numeric data.<br>  If there is more than one such value, only the smallest is returned.<br>- If "constant", then replace missing values with fill_value. Can be<br>  used with strings or numeric data.<br>- If an instance of Callable, then replace missing values using the<br>  scalar statistic returned by running the callable over a dense 1d<br>  array containing non-missing values of each column.<br><br>.. versionadded:: 0.20<br>   strategy="constant" for fixed value imputation.<br><br>.. versionadded:: 1.5<br>   strategy=callable for custom value imputation.</span>
-        </a>
-    </td>
-            <td class="value">&#x27;median&#x27;</td>
-        </tr>
-
-
-        <tr class="default">
-            <td><i class="copy-paste-icon"
-                 onclick="copyToClipboard('fill_value',
-                          this.parentElement.nextElementSibling)"
-            ></i></td>
-            <td class="param">
-        <a class="param-doc-link"
-            rel="noreferrer" target="_blank" href="https://scikit-learn.org/1.8/modules/generated/sklearn.impute.SimpleImputer.html#:~:text=fill_value,-str%20or%20numerical%20value%2C%20default%3DNone">
-            fill_value
-            <span class="param-doc-description">fill_value: str or numerical value, default=None<br><br>When strategy == "constant", `fill_value` is used to replace all<br>occurrences of missing_values. For string or object data types,<br>`fill_value` must be a string.<br>If `None`, `fill_value` will be 0 when imputing numerical<br>data and "missing_value" for strings or object data types.</span>
-        </a>
-    </td>
-            <td class="value">None</td>
-        </tr>
-
-
-        <tr class="default">
-            <td><i class="copy-paste-icon"
-                 onclick="copyToClipboard('copy',
-                          this.parentElement.nextElementSibling)"
-            ></i></td>
-            <td class="param">
-        <a class="param-doc-link"
-            rel="noreferrer" target="_blank" href="https://scikit-learn.org/1.8/modules/generated/sklearn.impute.SimpleImputer.html#:~:text=copy,-bool%2C%20default%3DTrue">
-            copy
-            <span class="param-doc-description">copy: bool, default=True<br><br>If True, a copy of X will be created. If False, imputation will<br>be done in-place whenever possible. Note that, in the following cases,<br>a new copy will always be made, even if `copy=False`:<br><br>- If `X` is not an array of floating values;<br>- If `X` is encoded as a CSR matrix;<br>- If `add_indicator=True`.</span>
-        </a>
-    </td>
-            <td class="value">True</td>
-        </tr>
-
-
-        <tr class="default">
-            <td><i class="copy-paste-icon"
-                 onclick="copyToClipboard('add_indicator',
-                          this.parentElement.nextElementSibling)"
-            ></i></td>
-            <td class="param">
-        <a class="param-doc-link"
-            rel="noreferrer" target="_blank" href="https://scikit-learn.org/1.8/modules/generated/sklearn.impute.SimpleImputer.html#:~:text=add_indicator,-bool%2C%20default%3DFalse">
-            add_indicator
-            <span class="param-doc-description">add_indicator: bool, default=False<br><br>If True, a :class:`MissingIndicator` transform will stack onto output<br>of the imputer's transform. This allows a predictive estimator<br>to account for missingness despite imputation. If a feature has no<br>missing values at fit/train time, the feature won't appear on<br>the missing indicator even if there are missing values at<br>transform/test time.</span>
-        </a>
-    </td>
-            <td class="value">False</td>
-        </tr>
-
-
-        <tr class="default">
-            <td><i class="copy-paste-icon"
-                 onclick="copyToClipboard('keep_empty_features',
-                          this.parentElement.nextElementSibling)"
-            ></i></td>
-            <td class="param">
-        <a class="param-doc-link"
-            rel="noreferrer" target="_blank" href="https://scikit-learn.org/1.8/modules/generated/sklearn.impute.SimpleImputer.html#:~:text=keep_empty_features,-bool%2C%20default%3DFalse">
-            keep_empty_features
-            <span class="param-doc-description">keep_empty_features: bool, default=False<br><br>If True, features that consist exclusively of missing values when<br>`fit` is called are returned in results when `transform` is called.<br>The imputed value is always `0` except when `strategy="constant"`<br>in which case `fill_value` will be used instead.<br><br>.. versionadded:: 1.2</span>
-        </a>
-    </td>
-            <td class="value">False</td>
-        </tr>
-
-                  </tbody>
-                </table>
-            </details>
-        </div>
-    </div></div></div><div class="sk-item"><div class="sk-estimator  sk-toggleable"><input class="sk-toggleable__control sk-hidden--visually" id="sk-estimator-id-4" type="checkbox" ><label for="sk-estimator-id-4" class="sk-toggleable__label  sk-toggleable__label-arrow"><div><div>StandardScaler</div></div><div><a class="sk-estimator-doc-link " rel="noreferrer" target="_blank" href="https://scikit-learn.org/1.8/modules/generated/sklearn.preprocessing.StandardScaler.html">?<span>Documentation for StandardScaler</span></a></div></label><div class="sk-toggleable__content " data-param-prefix="num__scaler__">
-        <div class="estimator-table">
-            <details>
-                <summary>Parameters</summary>
-                <table class="parameters-table">
-                  <tbody>
-
-        <tr class="default">
-            <td><i class="copy-paste-icon"
-                 onclick="copyToClipboard('copy',
-                          this.parentElement.nextElementSibling)"
-            ></i></td>
-            <td class="param">
-        <a class="param-doc-link"
-            rel="noreferrer" target="_blank" href="https://scikit-learn.org/1.8/modules/generated/sklearn.preprocessing.StandardScaler.html#:~:text=copy,-bool%2C%20default%3DTrue">
-            copy
-            <span class="param-doc-description">copy: bool, default=True<br><br>If False, try to avoid a copy and do inplace scaling instead.<br>This is not guaranteed to always work inplace; e.g. if the data is<br>not a NumPy array or scipy.sparse CSR matrix, a copy may still be<br>returned.</span>
-        </a>
-    </td>
-            <td class="value">True</td>
-        </tr>
-
-
-        <tr class="default">
-            <td><i class="copy-paste-icon"
-                 onclick="copyToClipboard('with_mean',
-                          this.parentElement.nextElementSibling)"
-            ></i></td>
-            <td class="param">
-        <a class="param-doc-link"
-            rel="noreferrer" target="_blank" href="https://scikit-learn.org/1.8/modules/generated/sklearn.preprocessing.StandardScaler.html#:~:text=with_mean,-bool%2C%20default%3DTrue">
-            with_mean
-            <span class="param-doc-description">with_mean: bool, default=True<br><br>If True, center the data before scaling.<br>This does not work (and will raise an exception) when attempted on<br>sparse matrices, because centering them entails building a dense<br>matrix which in common use cases is likely to be too large to fit in<br>memory.</span>
-        </a>
-    </td>
-            <td class="value">True</td>
-        </tr>
-
-
-        <tr class="default">
-            <td><i class="copy-paste-icon"
-                 onclick="copyToClipboard('with_std',
-                          this.parentElement.nextElementSibling)"
-            ></i></td>
-            <td class="param">
-        <a class="param-doc-link"
-            rel="noreferrer" target="_blank" href="https://scikit-learn.org/1.8/modules/generated/sklearn.preprocessing.StandardScaler.html#:~:text=with_std,-bool%2C%20default%3DTrue">
-            with_std
-            <span class="param-doc-description">with_std: bool, default=True<br><br>If True, scale the data to unit variance (or equivalently,<br>unit standard deviation).</span>
-        </a>
-    </td>
-            <td class="value">True</td>
-        </tr>
-
-                  </tbody>
-                </table>
-            </details>
-        </div>
-    </div></div></div></div></div></div></div></div><div class="sk-parallel-item"><div class="sk-item"><div class="sk-label-container"><div class="sk-label  sk-toggleable"><input class="sk-toggleable__control sk-hidden--visually" id="sk-estimator-id-5" type="checkbox" ><label for="sk-estimator-id-5" class="sk-toggleable__label  sk-toggleable__label-arrow"><div><div>cat</div></div></label><div class="sk-toggleable__content " data-param-prefix="cat__"><pre>[&#x27;Location&#x27;, &#x27;WindGustDir&#x27;, &#x27;WindDir9am&#x27;, &#x27;WindDir3pm&#x27;, &#x27;RainToday&#x27;, &#x27;Month&#x27;]</pre></div></div></div><div class="sk-serial"><div class="sk-item"><div class="sk-serial"><div class="sk-item"><div class="sk-estimator  sk-toggleable"><input class="sk-toggleable__control sk-hidden--visually" id="sk-estimator-id-6" type="checkbox" ><label for="sk-estimator-id-6" class="sk-toggleable__label  sk-toggleable__label-arrow"><div><div>SimpleImputer</div></div><div><a class="sk-estimator-doc-link " rel="noreferrer" target="_blank" href="https://scikit-learn.org/1.8/modules/generated/sklearn.impute.SimpleImputer.html">?<span>Documentation for SimpleImputer</span></a></div></label><div class="sk-toggleable__content " data-param-prefix="cat__imputer__">
-        <div class="estimator-table">
-            <details>
-                <summary>Parameters</summary>
-                <table class="parameters-table">
-                  <tbody>
-
-        <tr class="default">
-            <td><i class="copy-paste-icon"
-                 onclick="copyToClipboard('missing_values',
-                          this.parentElement.nextElementSibling)"
-            ></i></td>
-            <td class="param">
-        <a class="param-doc-link"
-            rel="noreferrer" target="_blank" href="https://scikit-learn.org/1.8/modules/generated/sklearn.impute.SimpleImputer.html#:~:text=missing_values,-int%2C%20float%2C%20str%2C%20np.nan%2C%20None%20or%20pandas.NA%2C%20default%3Dnp.nan">
-            missing_values
-            <span class="param-doc-description">missing_values: int, float, str, np.nan, None or pandas.NA, default=np.nan<br><br>The placeholder for the missing values. All occurrences of<br>`missing_values` will be imputed. For pandas' dataframes with<br>nullable integer dtypes with missing values, `missing_values`<br>can be set to either `np.nan` or `pd.NA`.</span>
-        </a>
-    </td>
-            <td class="value">nan</td>
-        </tr>
-
-
-        <tr class="user-set">
-            <td><i class="copy-paste-icon"
-                 onclick="copyToClipboard('strategy',
-                          this.parentElement.nextElementSibling)"
-            ></i></td>
-            <td class="param">
-        <a class="param-doc-link"
-            rel="noreferrer" target="_blank" href="https://scikit-learn.org/1.8/modules/generated/sklearn.impute.SimpleImputer.html#:~:text=strategy,-str%20or%20Callable%2C%20default%3D%27mean%27">
-            strategy
-            <span class="param-doc-description">strategy: str or Callable, default='mean'<br><br>The imputation strategy.<br><br>- If "mean", then replace missing values using the mean along<br>  each column. Can only be used with numeric data.<br>- If "median", then replace missing values using the median along<br>  each column. Can only be used with numeric data.<br>- If "most_frequent", then replace missing using the most frequent<br>  value along each column. Can be used with strings or numeric data.<br>  If there is more than one such value, only the smallest is returned.<br>- If "constant", then replace missing values with fill_value. Can be<br>  used with strings or numeric data.<br>- If an instance of Callable, then replace missing values using the<br>  scalar statistic returned by running the callable over a dense 1d<br>  array containing non-missing values of each column.<br><br>.. versionadded:: 0.20<br>   strategy="constant" for fixed value imputation.<br><br>.. versionadded:: 1.5<br>   strategy=callable for custom value imputation.</span>
-        </a>
-    </td>
-            <td class="value">&#x27;most_frequent&#x27;</td>
-        </tr>
-
-
-        <tr class="default">
-            <td><i class="copy-paste-icon"
-                 onclick="copyToClipboard('fill_value',
-                          this.parentElement.nextElementSibling)"
-            ></i></td>
-            <td class="param">
-        <a class="param-doc-link"
-            rel="noreferrer" target="_blank" href="https://scikit-learn.org/1.8/modules/generated/sklearn.impute.SimpleImputer.html#:~:text=fill_value,-str%20or%20numerical%20value%2C%20default%3DNone">
-            fill_value
-            <span class="param-doc-description">fill_value: str or numerical value, default=None<br><br>When strategy == "constant", `fill_value` is used to replace all<br>occurrences of missing_values. For string or object data types,<br>`fill_value` must be a string.<br>If `None`, `fill_value` will be 0 when imputing numerical<br>data and "missing_value" for strings or object data types.</span>
-        </a>
-    </td>
-            <td class="value">None</td>
-        </tr>
-
-
-        <tr class="default">
-            <td><i class="copy-paste-icon"
-                 onclick="copyToClipboard('copy',
-                          this.parentElement.nextElementSibling)"
-            ></i></td>
-            <td class="param">
-        <a class="param-doc-link"
-            rel="noreferrer" target="_blank" href="https://scikit-learn.org/1.8/modules/generated/sklearn.impute.SimpleImputer.html#:~:text=copy,-bool%2C%20default%3DTrue">
-            copy
-            <span class="param-doc-description">copy: bool, default=True<br><br>If True, a copy of X will be created. If False, imputation will<br>be done in-place whenever possible. Note that, in the following cases,<br>a new copy will always be made, even if `copy=False`:<br><br>- If `X` is not an array of floating values;<br>- If `X` is encoded as a CSR matrix;<br>- If `add_indicator=True`.</span>
-        </a>
-    </td>
-            <td class="value">True</td>
-        </tr>
-
-
-        <tr class="default">
-            <td><i class="copy-paste-icon"
-                 onclick="copyToClipboard('add_indicator',
-                          this.parentElement.nextElementSibling)"
-            ></i></td>
-            <td class="param">
-        <a class="param-doc-link"
-            rel="noreferrer" target="_blank" href="https://scikit-learn.org/1.8/modules/generated/sklearn.impute.SimpleImputer.html#:~:text=add_indicator,-bool%2C%20default%3DFalse">
-            add_indicator
-            <span class="param-doc-description">add_indicator: bool, default=False<br><br>If True, a :class:`MissingIndicator` transform will stack onto output<br>of the imputer's transform. This allows a predictive estimator<br>to account for missingness despite imputation. If a feature has no<br>missing values at fit/train time, the feature won't appear on<br>the missing indicator even if there are missing values at<br>transform/test time.</span>
-        </a>
-    </td>
-            <td class="value">False</td>
-        </tr>
-
-
-        <tr class="default">
-            <td><i class="copy-paste-icon"
-                 onclick="copyToClipboard('keep_empty_features',
-                          this.parentElement.nextElementSibling)"
-            ></i></td>
-            <td class="param">
-        <a class="param-doc-link"
-            rel="noreferrer" target="_blank" href="https://scikit-learn.org/1.8/modules/generated/sklearn.impute.SimpleImputer.html#:~:text=keep_empty_features,-bool%2C%20default%3DFalse">
-            keep_empty_features
-            <span class="param-doc-description">keep_empty_features: bool, default=False<br><br>If True, features that consist exclusively of missing values when<br>`fit` is called are returned in results when `transform` is called.<br>The imputed value is always `0` except when `strategy="constant"`<br>in which case `fill_value` will be used instead.<br><br>.. versionadded:: 1.2</span>
-        </a>
-    </td>
-            <td class="value">False</td>
-        </tr>
-
-                  </tbody>
-                </table>
-            </details>
-        </div>
-    </div></div></div><div class="sk-item"><div class="sk-estimator  sk-toggleable"><input class="sk-toggleable__control sk-hidden--visually" id="sk-estimator-id-7" type="checkbox" ><label for="sk-estimator-id-7" class="sk-toggleable__label  sk-toggleable__label-arrow"><div><div>OneHotEncoder</div></div><div><a class="sk-estimator-doc-link " rel="noreferrer" target="_blank" href="https://scikit-learn.org/1.8/modules/generated/sklearn.preprocessing.OneHotEncoder.html">?<span>Documentation for OneHotEncoder</span></a></div></label><div class="sk-toggleable__content " data-param-prefix="cat__onehot__">
-        <div class="estimator-table">
-            <details>
-                <summary>Parameters</summary>
-                <table class="parameters-table">
-                  <tbody>
-
-        <tr class="default">
-            <td><i class="copy-paste-icon"
-                 onclick="copyToClipboard('categories',
-                          this.parentElement.nextElementSibling)"
-            ></i></td>
-            <td class="param">
-        <a class="param-doc-link"
-            rel="noreferrer" target="_blank" href="https://scikit-learn.org/1.8/modules/generated/sklearn.preprocessing.OneHotEncoder.html#:~:text=categories,-%27auto%27%20or%20a%20list%20of%20array-like%2C%20default%3D%27auto%27">
-            categories
-            <span class="param-doc-description">categories: 'auto' or a list of array-like, default='auto'<br><br>Categories (unique values) per feature:<br><br>- 'auto' : Determine categories automatically from the training data.<br>- list : ``categories[i]`` holds the categories expected in the ith<br>  column. The passed categories should not mix strings and numeric<br>  values within a single feature, and should be sorted in case of<br>  numeric values.<br><br>The used categories can be found in the ``categories_`` attribute.<br><br>.. versionadded:: 0.20</span>
-        </a>
-    </td>
-            <td class="value">&#x27;auto&#x27;</td>
-        </tr>
-
-
-        <tr class="default">
-            <td><i class="copy-paste-icon"
-                 onclick="copyToClipboard('drop',
-                          this.parentElement.nextElementSibling)"
-            ></i></td>
-            <td class="param">
-        <a class="param-doc-link"
-            rel="noreferrer" target="_blank" href="https://scikit-learn.org/1.8/modules/generated/sklearn.preprocessing.OneHotEncoder.html#:~:text=drop,-%7B%27first%27%2C%20%27if_binary%27%7D%20or%20an%20array-like%20of%20shape%20%28n_features%2C%29%2C%20%20%20%20%20%20%20%20%20%20%20%20%20default%3DNone">
-            drop
-            <span class="param-doc-description">drop: {'first', 'if_binary'} or an array-like of shape (n_features,),             default=None<br><br>Specifies a methodology to use to drop one of the categories per<br>feature. This is useful in situations where perfectly collinear<br>features cause problems, such as when feeding the resulting data<br>into an unregularized linear regression model.<br><br>However, dropping one category breaks the symmetry of the original<br>representation and can therefore induce a bias in downstream models,<br>for instance for penalized linear classification or regression models.<br><br>- None : retain all features (the default).<br>- 'first' : drop the first category in each feature. If only one<br>  category is present, the feature will be dropped entirely.<br>- 'if_binary' : drop the first category in each feature with two<br>  categories. Features with 1 or more than 2 categories are<br>  left intact.<br>- array : ``drop[i]`` is the category in feature ``X[:, i]`` that<br>  should be dropped.<br><br>When `max_categories` or `min_frequency` is configured to group<br>infrequent categories, the dropping behavior is handled after the<br>grouping.<br><br>.. versionadded:: 0.21<br>   The parameter `drop` was added in 0.21.<br><br>.. versionchanged:: 0.23<br>   The option `drop='if_binary'` was added in 0.23.<br><br>.. versionchanged:: 1.1<br>    Support for dropping infrequent categories.</span>
-        </a>
-    </td>
-            <td class="value">None</td>
-        </tr>
-
-
-        <tr class="default">
-            <td><i class="copy-paste-icon"
-                 onclick="copyToClipboard('sparse_output',
-                          this.parentElement.nextElementSibling)"
-            ></i></td>
-            <td class="param">
-        <a class="param-doc-link"
-            rel="noreferrer" target="_blank" href="https://scikit-learn.org/1.8/modules/generated/sklearn.preprocessing.OneHotEncoder.html#:~:text=sparse_output,-bool%2C%20default%3DTrue">
-            sparse_output
-            <span class="param-doc-description">sparse_output: bool, default=True<br><br>When ``True``, it returns a :class:`scipy.sparse.csr_matrix`,<br>i.e. a sparse matrix in "Compressed Sparse Row" (CSR) format.<br><br>.. versionadded:: 1.2<br>   `sparse` was renamed to `sparse_output`</span>
-        </a>
-    </td>
-            <td class="value">True</td>
-        </tr>
-
-
-        <tr class="default">
-            <td><i class="copy-paste-icon"
-                 onclick="copyToClipboard('dtype',
-                          this.parentElement.nextElementSibling)"
-            ></i></td>
-            <td class="param">
-        <a class="param-doc-link"
-            rel="noreferrer" target="_blank" href="https://scikit-learn.org/1.8/modules/generated/sklearn.preprocessing.OneHotEncoder.html#:~:text=dtype,-number%20type%2C%20default%3Dnp.float64">
-            dtype
-            <span class="param-doc-description">dtype: number type, default=np.float64<br><br>Desired dtype of output.</span>
-        </a>
-    </td>
-            <td class="value">&lt;class &#x27;numpy.float64&#x27;&gt;</td>
-        </tr>
-
-
-        <tr class="user-set">
-            <td><i class="copy-paste-icon"
-                 onclick="copyToClipboard('handle_unknown',
-                          this.parentElement.nextElementSibling)"
-            ></i></td>
-            <td class="param">
-        <a class="param-doc-link"
-            rel="noreferrer" target="_blank" href="https://scikit-learn.org/1.8/modules/generated/sklearn.preprocessing.OneHotEncoder.html#:~:text=handle_unknown,-%7B%27error%27%2C%20%27ignore%27%2C%20%27infrequent_if_exist%27%2C%20%27warn%27%7D%2C%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20default%3D%27error%27">
-            handle_unknown
-            <span class="param-doc-description">handle_unknown: {'error', 'ignore', 'infrequent_if_exist', 'warn'},                      default='error'<br><br>Specifies the way unknown categories are handled during :meth:`transform`.<br><br>- 'error' : Raise an error if an unknown category is present during transform.<br>- 'ignore' : When an unknown category is encountered during<br>  transform, the resulting one-hot encoded columns for this feature<br>  will be all zeros. In the inverse transform, an unknown category<br>  will be denoted as None.<br>- 'infrequent_if_exist' : When an unknown category is encountered<br>  during transform, the resulting one-hot encoded columns for this<br>  feature will map to the infrequent category if it exists. The<br>  infrequent category will be mapped to the last position in the<br>  encoding. During inverse transform, an unknown category will be<br>  mapped to the category denoted `'infrequent'` if it exists. If the<br>  `'infrequent'` category does not exist, then :meth:`transform` and<br>  :meth:`inverse_transform` will handle an unknown category as with<br>  `handle_unknown='ignore'`. Infrequent categories exist based on<br>  `min_frequency` and `max_categories`. Read more in the<br>  :ref:`User Guide <encoder_infrequent_categories>`.<br>- 'warn' : When an unknown category is encountered during transform<br>  a warning is issued, and the encoding then proceeds as described for<br>  `handle_unknown="infrequent_if_exist"`.<br><br>.. versionchanged:: 1.1<br>    `'infrequent_if_exist'` was added to automatically handle unknown<br>    categories and infrequent categories.<br><br>.. versionadded:: 1.6<br>   The option `"warn"` was added in 1.6.</span>
-        </a>
-    </td>
-            <td class="value">&#x27;ignore&#x27;</td>
-        </tr>
-
-
-        <tr class="default">
-            <td><i class="copy-paste-icon"
-                 onclick="copyToClipboard('min_frequency',
-                          this.parentElement.nextElementSibling)"
-            ></i></td>
-            <td class="param">
-        <a class="param-doc-link"
-            rel="noreferrer" target="_blank" href="https://scikit-learn.org/1.8/modules/generated/sklearn.preprocessing.OneHotEncoder.html#:~:text=min_frequency,-int%20or%20float%2C%20default%3DNone">
-            min_frequency
-            <span class="param-doc-description">min_frequency: int or float, default=None<br><br>Specifies the minimum frequency below which a category will be<br>considered infrequent.<br><br>- If `int`, categories with a smaller cardinality will be considered<br>  infrequent.<br><br>- If `float`, categories with a smaller cardinality than<br>  `min_frequency * n_samples`  will be considered infrequent.<br><br>.. versionadded:: 1.1<br>    Read more in the :ref:`User Guide <encoder_infrequent_categories>`.</span>
-        </a>
-    </td>
-            <td class="value">None</td>
-        </tr>
-
-
-        <tr class="default">
-            <td><i class="copy-paste-icon"
-                 onclick="copyToClipboard('max_categories',
-                          this.parentElement.nextElementSibling)"
-            ></i></td>
-            <td class="param">
-        <a class="param-doc-link"
-            rel="noreferrer" target="_blank" href="https://scikit-learn.org/1.8/modules/generated/sklearn.preprocessing.OneHotEncoder.html#:~:text=max_categories,-int%2C%20default%3DNone">
-            max_categories
-            <span class="param-doc-description">max_categories: int, default=None<br><br>Specifies an upper limit to the number of output features for each input<br>feature when considering infrequent categories. If there are infrequent<br>categories, `max_categories` includes the category representing the<br>infrequent categories along with the frequent categories. If `None`,<br>there is no limit to the number of output features.<br><br>.. versionadded:: 1.1<br>    Read more in the :ref:`User Guide <encoder_infrequent_categories>`.</span>
-        </a>
-    </td>
-            <td class="value">None</td>
-        </tr>
-
-
-        <tr class="default">
-            <td><i class="copy-paste-icon"
-                 onclick="copyToClipboard('feature_name_combiner',
-                          this.parentElement.nextElementSibling)"
-            ></i></td>
-            <td class="param">
-        <a class="param-doc-link"
-            rel="noreferrer" target="_blank" href="https://scikit-learn.org/1.8/modules/generated/sklearn.preprocessing.OneHotEncoder.html#:~:text=feature_name_combiner,-%22concat%22%20or%20callable%2C%20default%3D%22concat%22">
-            feature_name_combiner
-            <span class="param-doc-description">feature_name_combiner: "concat" or callable, default="concat"<br><br>Callable with signature `def callable(input_feature, category)` that returns a<br>string. This is used to create feature names to be returned by<br>:meth:`get_feature_names_out`.<br><br>`"concat"` concatenates encoded feature name and category with<br>`feature + "_" + str(category)`.E.g. feature X with values 1, 6, 7 create<br>feature names `X_1, X_6, X_7`.<br><br>.. versionadded:: 1.3</span>
-        </a>
-    </td>
-            <td class="value">&#x27;concat&#x27;</td>
-        </tr>
-
-                  </tbody>
-                </table>
-            </details>
-        </div>
-    </div></div></div></div></div></div></div></div></div></div></div></div><script>function copyToClipboard(text, element) {
-    // Get the parameter prefix from the closest toggleable content
-    const toggleableContent = element.closest('.sk-toggleable__content');
-    const paramPrefix = toggleableContent ? toggleableContent.dataset.paramPrefix : '';
-    const fullParamName = paramPrefix ? `${paramPrefix}${text}` : text;
-
-    const originalStyle = element.style;
-    const computedStyle = window.getComputedStyle(element);
-    const originalWidth = computedStyle.width;
-    const originalHTML = element.innerHTML.replace('Copied!', '');
-
-    navigator.clipboard.writeText(fullParamName)
-        .then(() => {
-            element.style.width = originalWidth;
-            element.style.color = 'green';
-            element.innerHTML = "Copied!";
-
-            setTimeout(() => {
-                element.innerHTML = originalHTML;
-                element.style = originalStyle;
-            }, 2000);
-        })
-        .catch(err => {
-            console.error('Failed to copy:', err);
-            element.style.color = 'red';
-            element.innerHTML = "Failed!";
-            setTimeout(() => {
-                element.innerHTML = originalHTML;
-                element.style = originalStyle;
-            }, 2000);
-        });
-    return false;
-}
-
-document.querySelectorAll('.copy-paste-icon').forEach(function(element) {
-    const toggleableContent = element.closest('.sk-toggleable__content');
-    const paramPrefix = toggleableContent ? toggleableContent.dataset.paramPrefix : '';
-    const paramName = element.parentElement.nextElementSibling
-        .textContent.trim().split(' ')[0];
-    const fullParamName = paramPrefix ? `${paramPrefix}${paramName}` : paramName;
-
-    element.setAttribute('title', fullParamName);
-});
-
-
-/**
- * Adapted from Skrub
- * https://github.com/skrub-data/skrub/blob/403466d1d5d4dc76a7ef569b3f8228db59a31dc3/skrub/_reporting/_data/templates/report.js#L789
- * @returns "light" or "dark"
- */
-function detectTheme(element) {
-    const body = document.querySelector('body');
-
-    // Check VSCode theme
-    const themeKindAttr = body.getAttribute('data-vscode-theme-kind');
-    const themeNameAttr = body.getAttribute('data-vscode-theme-name');
-
-    if (themeKindAttr && themeNameAttr) {
-        const themeKind = themeKindAttr.toLowerCase();
-        const themeName = themeNameAttr.toLowerCase();
-
-        if (themeKind.includes("dark") || themeName.includes("dark")) {
-            return "dark";
-        }
-        if (themeKind.includes("light") || themeName.includes("light")) {
-            return "light";
-        }
-    }
-
-    // Check Jupyter theme
-    if (body.getAttribute('data-jp-theme-light') === 'false') {
-        return 'dark';
-    } else if (body.getAttribute('data-jp-theme-light') === 'true') {
-        return 'light';
-    }
-
-    // Guess based on a parent element's color
-    const color = window.getComputedStyle(element.parentNode, null).getPropertyValue('color');
-    const match = color.match(/^rgb\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)\s*$/i);
-    if (match) {
-        const [r, g, b] = [
-            parseFloat(match[1]),
-            parseFloat(match[2]),
-            parseFloat(match[3])
-        ];
-
-        // https://en.wikipedia.org/wiki/HSL_and_HSV#Lightness
-        const luma = 0.299 * r + 0.587 * g + 0.114 * b;
-
-        if (luma > 180) {
-            // If the text is very bright we have a dark theme
-            return 'dark';
-        }
-        if (luma < 75) {
-            // If the text is very dark we have a light theme
-            return 'light';
-        }
-        // Otherwise fall back to the next heuristic.
-    }
-
-    // Fallback to system preference
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-}
-
-
-function forceTheme(elementId) {
-    const estimatorElement = document.querySelector(`#${elementId}`);
-    if (estimatorElement === null) {
-        console.error(`Element with id ${elementId} not found.`);
-    } else {
-        const theme = detectTheme(estimatorElement);
-        estimatorElement.classList.add(theme);
-    }
-}
-
-forceTheme('sk-container-id-1');</script></body>
-
-
-
-## 3. Modélisation
-
-Deux modèles classiques pour la classification binaire — **Régression Logistique** (référence linéaire)
-et **Random Forest** (ensemble non linéaire) — chacun encapsulé dans un pipeline avec le préprocesseur,
-donc **ajusté uniquement sur le train**. Métriques : accuracy, *recall*/F1 de la classe « pluie », ROC-AUC.
+                                  &#x27;WindDir3pm&#x27;, &#x27;RainToday&#x27;, &#x27;Month&#x27;])])</pre><b>In a Jupyter environment, please rerun this cell to show the HTML representation or trust the notebook. <br />On GitHub, the HTML representation is unable to render, please try loading this page with nbviewer.org.</b></div><div class="sk-container" hidden><div class="sk-item sk-dashed-wrapped"><div class="sk-label-container"><div class="sk-label  sk-toggleable"><input class="sk-toggleable__control sk-hidden--visually" id="sk-estimator-id-1" type="checkbox" ><label for="sk-estimator-id-1" class="sk-toggleable__label  sk-toggleable__label-arrow ">&nbsp;&nbsp;ColumnTransformer<a class="sk-estimator-doc-link " rel="noreferrer" target="_blank" href="https://scikit-learn.org/1.5/modules/generated/sklearn.compose.ColumnTransformer.html">?<span>Documentation for ColumnTransformer</span></a><span class="sk-estimator-doc-link ">i<span>Not fitted</span></span></label><div class="sk-toggleable__content "><pre>ColumnTransformer(transformers=[(&#x27;num&#x27;,
+                                 Pipeline(steps=[(&#x27;imputer&#x27;,
+                                                  SimpleImputer(strategy=&#x27;median&#x27;)),
+                                                 (&#x27;scaler&#x27;, StandardScaler())]),
+                                 [&#x27;MinTemp&#x27;, &#x27;MaxTemp&#x27;, &#x27;Rainfall&#x27;,
+                                  &#x27;Evaporation&#x27;, &#x27;Sunshine&#x27;, &#x27;WindGustSpeed&#x27;,
+                                  &#x27;WindSpeed9am&#x27;, &#x27;WindSpeed3pm&#x27;, &#x27;Humidity9am&#x27;,
+                                  &#x27;Humidity3pm&#x27;, &#x27;Pressure9am&#x27;, &#x27;Pressure3pm&#x27;,
+                                  &#x27;Cloud9am&#x27;, &#x27;Cloud3pm&#x27;, &#x27;Temp9am&#x27;,
+                                  &#x27;Temp3pm&#x27;]),
+                                (&#x27;cat&#x27;,
+                                 Pipeline(steps=[(&#x27;imputer&#x27;,
+                                                  SimpleImputer(strategy=&#x27;most_frequent&#x27;)),
+                                                 (&#x27;onehot&#x27;,
+                                                  OneHotEncoder(handle_unknown=&#x27;ignore&#x27;))]),
+                                 [&#x27;Location&#x27;, &#x27;WindGustDir&#x27;, &#x27;WindDir9am&#x27;,
+                                  &#x27;WindDir3pm&#x27;, &#x27;RainToday&#x27;, &#x27;Month&#x27;])])</pre></div> </div></div><div class="sk-parallel"><div class="sk-parallel-item"><div class="sk-item"><div class="sk-label-container"><div class="sk-label  sk-toggleable"><input class="sk-toggleable__control sk-hidden--visually" id="sk-estimator-id-2" type="checkbox" ><label for="sk-estimator-id-2" class="sk-toggleable__label  sk-toggleable__label-arrow ">num</label><div class="sk-toggleable__content "><pre>[&#x27;MinTemp&#x27;, &#x27;MaxTemp&#x27;, &#x27;Rainfall&#x27;, &#x27;Evaporation&#x27;, &#x27;Sunshine&#x27;, &#x27;WindGustSpeed&#x27;, &#x27;WindSpeed9am&#x27;, &#x27;WindSpeed3pm&#x27;, &#x27;Humidity9am&#x27;, &#x27;Humidity3pm&#x27;, &#x27;Pressure9am&#x27;, &#x27;Pressure3pm&#x27;, &#x27;Cloud9am&#x27;, &#x27;Cloud3pm&#x27;, &#x27;Temp9am&#x27;, &#x27;Temp3pm&#x27;]</pre></div> </div></div><div class="sk-serial"><div class="sk-item"><div class="sk-serial"><div class="sk-item"><div class="sk-estimator  sk-toggleable"><input class="sk-toggleable__control sk-hidden--visually" id="sk-estimator-id-3" type="checkbox" ><label for="sk-estimator-id-3" class="sk-toggleable__label  sk-toggleable__label-arrow ">&nbsp;SimpleImputer<a class="sk-estimator-doc-link " rel="noreferrer" target="_blank" href="https://scikit-learn.org/1.5/modules/generated/sklearn.impute.SimpleImputer.html">?<span>Documentation for SimpleImputer</span></a></label><div class="sk-toggleable__content "><pre>SimpleImputer(strategy=&#x27;median&#x27;)</pre></div> </div></div><div class="sk-item"><div class="sk-estimator  sk-toggleable"><input class="sk-toggleable__control sk-hidden--visually" id="sk-estimator-id-4" type="checkbox" ><label for="sk-estimator-id-4" class="sk-toggleable__label  sk-toggleable__label-arrow ">&nbsp;StandardScaler<a class="sk-estimator-doc-link " rel="noreferrer" target="_blank" href="https://scikit-learn.org/1.5/modules/generated/sklearn.preprocessing.StandardScaler.html">?<span>Documentation for StandardScaler</span></a></label><div class="sk-toggleable__content "><pre>StandardScaler()</pre></div> </div></div></div></div></div></div></div><div class="sk-parallel-item"><div class="sk-item"><div class="sk-label-container"><div class="sk-label  sk-toggleable"><input class="sk-toggleable__control sk-hidden--visually" id="sk-estimator-id-5" type="checkbox" ><label for="sk-estimator-id-5" class="sk-toggleable__label  sk-toggleable__label-arrow ">cat</label><div class="sk-toggleable__content "><pre>[&#x27;Location&#x27;, &#x27;WindGustDir&#x27;, &#x27;WindDir9am&#x27;, &#x27;WindDir3pm&#x27;, &#x27;RainToday&#x27;, &#x27;Month&#x27;]</pre></div> </div></div><div class="sk-serial"><div class="sk-item"><div class="sk-serial"><div class="sk-item"><div class="sk-estimator  sk-toggleable"><input class="sk-toggleable__control sk-hidden--visually" id="sk-estimator-id-6" type="checkbox" ><label for="sk-estimator-id-6" class="sk-toggleable__label  sk-toggleable__label-arrow ">&nbsp;SimpleImputer<a class="sk-estimator-doc-link " rel="noreferrer" target="_blank" href="https://scikit-learn.org/1.5/modules/generated/sklearn.impute.SimpleImputer.html">?<span>Documentation for SimpleImputer</span></a></label><div class="sk-toggleable__content "><pre>SimpleImputer(strategy=&#x27;most_frequent&#x27;)</pre></div> </div></div><div class="sk-item"><div class="sk-estimator  sk-toggleable"><input class="sk-toggleable__control sk-hidden--visually" id="sk-estimator-id-7" type="checkbox" ><label for="sk-estimator-id-7" class="sk-toggleable__label  sk-toggleable__label-arrow ">&nbsp;OneHotEncoder<a class="sk-estimator-doc-link " rel="noreferrer" target="_blank" href="https://scikit-learn.org/1.5/modules/generated/sklearn.preprocessing.OneHotEncoder.html">?<span>Documentation for OneHotEncoder</span></a></label><div class="sk-toggleable__content "><pre>OneHotEncoder(handle_unknown=&#x27;ignore&#x27;)</pre></div> </div></div></div></div></div></div></div></div></div></div></div>
+
+
+
+## 2. Entraînement
+
+Trois familles de modèles, chacune dans un pipeline avec le préprocesseur pour que rien ne soit
+ajusté sur le test. Le déséquilibre 78/22 vu au notebook 1 impose de regarder le rappel de la
+classe « pluie » plutôt que l'accuracy : un modèle qui répond toujours « non » atteint déjà 78 %.
 
 
 ```python
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import (accuracy_score, classification_report,
-                             confusion_matrix, roc_auc_score, recall_score, f1_score)
+from sklearn.ensemble import RandomForestClassifier, HistGradientBoostingClassifier
+from sklearn.metrics import (accuracy_score, classification_report, confusion_matrix,
+                             roc_auc_score, recall_score, f1_score, precision_score,
+                             roc_curve, precision_recall_curve, average_precision_score)
 
 X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.2, random_state=RANDOM_STATE, stratify=y)
@@ -1537,7 +745,7 @@ print(f"Train : {X_train.shape[0]:,}  |  Test : {X_test.shape[0]:,}")
     Train : 113,754  |  Test : 28,439
 
 
-### 3.1 Régression Logistique
+### 2.1 Régression logistique
 
 
 ```python
@@ -1575,31 +783,39 @@ plt.xlabel("Prédit"); plt.ylabel("Réel"); plt.tight_layout(); plt.show()
     
 
 
-**Lecture.** Bonne accuracy globale (~0,85), mais le *recall* sur la classe « pluie » reste
-modeste (~0,5) : le modèle rate environ la moitié des jours de pluie — conséquence directe du
-déséquilibre. La ROC-AUC (~0,87) montre tout de même un bon pouvoir discriminant.
+Accuracy correcte (~0,85) mais le rappel sur la classe « pluie » plafonne autour de 0,5 : le
+modèle rate à peu près un jour de pluie sur deux. La ROC-AUC de ~0,87 montre pourtant que les
+probabilités classent bien les observations — c'est le seuil à 0,5 qui est mal placé, pas le
+modèle qui est mauvais. On y revient en section 4.
 
-### 3.2 Random Forest
+### 2.2 Forêt aléatoire
 
 
 ```python
+from time import perf_counter
+
 pipe_rf = Pipeline([("prep", preprocessor),
                     ("clf", RandomForestClassifier(n_estimators=100, n_jobs=-1,
                                                    random_state=RANDOM_STATE))])
+t0 = perf_counter()
 pipe_rf.fit(X_train, y_train)
+duree_rf = perf_counter() - t0
+
 y_pred_rf = pipe_rf.predict(X_test)
 proba_rf = pipe_rf.predict_proba(X_test)[:, 1]
 
+print(f"Entraînement : {duree_rf:.1f} s")
 print(f"Accuracy : {accuracy_score(y_test, y_pred_rf):.4f}   ROC-AUC : {roc_auc_score(y_test, proba_rf):.4f}")
 print(classification_report(y_test, y_pred_rf, target_names=["No", "Yes"]))
 
 cm = confusion_matrix(y_test, y_pred_rf)
 sns.heatmap(cm, annot=True, fmt="d", cmap="Blues",
             xticklabels=["No", "Yes"], yticklabels=["No", "Yes"])
-plt.title("Matrice de confusion — Random Forest")
+plt.title("Matrice de confusion — forêt aléatoire")
 plt.xlabel("Prédit"); plt.ylabel("Réel"); plt.tight_layout(); plt.show()
 ```
 
+    Entraînement : 21.7 s
     Accuracy : 0.8561   ROC-AUC : 0.8887
                   precision    recall  f1-score   support
     
@@ -1660,14 +876,79 @@ top15.round(4)
 
 
 
-**Lecture.** Le Random Forest fait légèrement mieux (accuracy ~0,855, ROC-AUC ~0,88) mais
-souffre du **même recall faible** sur la classe « pluie ». Les variables dominantes confirment l'EDA :
-`Humidity3pm`, `Sunshine`, `Pressure`, `Rainfall`, `WindGustSpeed`.
+Accuracy et ROC-AUC légèrement meilleures que la régression logistique, mais le rappel descend
+encore un peu (0,50 contre 0,52).
 
-### 3.3 Comparatif — modèles vs baselines
+`Humidity3pm` domine nettement les importances, avec un poids trois fois supérieur à la variable
+suivante. Viennent ensuite la pression, l'humidité du matin et la force des rafales. `Sunshine`,
+que l'EDA donnait comme le prédicteur le plus corrélé à la cible, arrive plus bas : la forêt
+répartit son importance sur des variables corrélées entre elles, et `Sunshine` est aussi la
+colonne la plus lacunaire du dataset (48 % de valeurs manquantes, donc souvent imputée).
 
-Bonus : une régression logistique `class_weight="balanced"` pour illustrer l'effet de la prise en
-compte du déséquilibre (recall « pluie » ↑ au prix de l'accuracy globale ↓).
+### 2.3 Gradient boosting
+
+`HistGradientBoostingClassifier` est l'implémentation par histogrammes de scikit-learn, pensée
+pour les gros volumes tabulaires. Une contrainte pratique : il n'accepte pas les matrices
+creuses, alors que `OneHotEncoder` en produit par défaut. Il faut donc un préprocesseur qui
+renvoie du dense.
+
+
+```python
+from sklearn.compose import ColumnTransformer
+from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+
+# Meme preprocessing, mais sortie dense : HistGB refuse le sparse
+# (TypeError: Sparse data was passed for X, but dense data is required).
+prep_dense = ColumnTransformer([
+    ("num", Pipeline([("imputer", SimpleImputer(strategy="median")),
+                      ("scaler", StandardScaler())]), numeric_features),
+    ("cat", Pipeline([("imputer", SimpleImputer(strategy="most_frequent")),
+                      ("onehot", OneHotEncoder(handle_unknown="ignore",
+                                               sparse_output=False))]), categorical_features),
+])
+
+pipe_hgb = Pipeline([("prep", prep_dense),
+                     ("clf", HistGradientBoostingClassifier(random_state=RANDOM_STATE))])
+t0 = perf_counter()
+pipe_hgb.fit(X_train, y_train)
+duree_hgb = perf_counter() - t0
+
+y_pred_hgb = pipe_hgb.predict(X_test)
+proba_hgb = pipe_hgb.predict_proba(X_test)[:, 1]
+
+print(f"Entraînement : {duree_hgb:.1f} s  (forêt aléatoire : {duree_rf:.1f} s)")
+print(f"Accuracy : {accuracy_score(y_test, y_pred_hgb):.4f}   ROC-AUC : {roc_auc_score(y_test, proba_hgb):.4f}")
+print(classification_report(y_test, y_pred_hgb, target_names=["No", "Yes"]))
+```
+
+    Entraînement : 2.7 s  (forêt aléatoire : 21.7 s)
+    Accuracy : 0.8575   ROC-AUC : 0.8907
+                  precision    recall  f1-score   support
+    
+              No       0.88      0.95      0.91     22064
+             Yes       0.76      0.54      0.63      6375
+    
+        accuracy                           0.86     28439
+       macro avg       0.82      0.74      0.77     28439
+    weighted avg       0.85      0.86      0.85     28439
+    
+
+
+Meilleur que la forêt sur l'accuracy, la ROC-AUC, le rappel et le F1. Un point va dans l'autre
+sens : la précision baisse (0,76 contre 0,78). Le modèle annonce un peu plus de pluie, donc il
+en rate moins et se trompe un peu plus souvent quand il annonce — sur une cible déséquilibrée
+c'est plutôt l'échange qu'on cherche.
+
+C'est le modèle qu'on retiendrait pour la production. La version actuellement déployée utilise
+une forêt ; le passage à HistGB demande de mettre `OneHotEncoder(sparse_output=False)` dans
+`App/src/data.py`, sinon l'entraînement échoue sur le type de matrice.
+
+### 2.4 Comparatif
+
+On ajoute une régression logistique `class_weight="balanced"` : elle rééquilibre artificiellement
+les deux classes pendant l'apprentissage et remonte fortement le rappel, au prix de l'accuracy.
+C'est une autre façon d'attaquer le même problème que le réglage du seuil.
 
 
 ```python
@@ -1678,23 +959,22 @@ pipe_lr_bal.fit(X_train, y_train)
 y_pred_bal = pipe_lr_bal.predict(X_test)
 proba_bal = pipe_lr_bal.predict_proba(X_test)[:, 1]
 
-def row(name, y_pred, proba=None):
+def ligne(nom, y_pred, proba=None):
     return {
-        "Modèle": name,
+        "Modèle": nom,
         "Accuracy": round(accuracy_score(y_test, y_pred), 4),
-        "Recall (pluie)": round(recall_score(y_test, y_pred), 4),
+        "Précision (pluie)": round(precision_score(y_test, y_pred, zero_division=0), 4),
+        "Rappel (pluie)": round(recall_score(y_test, y_pred), 4),
         "F1 (pluie)": round(f1_score(y_test, y_pred), 4),
         "ROC-AUC": round(roc_auc_score(y_test, proba), 4) if proba is not None else np.nan,
     }
 
-# baseline "toujours Non" sur le test
-y_pred_zero = np.zeros_like(y_test)
-
 compare = pd.DataFrame([
-    row("Baseline toujours-Non", y_pred_zero),
-    row("Régression Logistique", y_pred_lr, proba_lr),
-    row("Random Forest", y_pred_rf, proba_rf),
-    row("Rég. Log. (balanced)", y_pred_bal, proba_bal),
+    ligne("Baseline toujours 'Non'", np.zeros_like(y_test)),
+    ligne("Régression logistique", y_pred_lr, proba_lr),
+    ligne("Régression logistique (balanced)", y_pred_bal, proba_bal),
+    ligne("Forêt aléatoire", y_pred_rf, proba_rf),
+    ligne("Gradient boosting", y_pred_hgb, proba_hgb),
 ]).set_index("Modèle")
 compare
 ```
@@ -1721,7 +1001,8 @@ compare
     <tr style="text-align: right;">
       <th></th>
       <th>Accuracy</th>
-      <th>Recall (pluie)</th>
+      <th>Précision (pluie)</th>
+      <th>Rappel (pluie)</th>
       <th>F1 (pluie)</th>
       <th>ROC-AUC</th>
     </tr>
@@ -1731,36 +1012,49 @@ compare
       <th></th>
       <th></th>
       <th></th>
+      <th></th>
     </tr>
   </thead>
   <tbody>
     <tr>
-      <th>Baseline toujours-Non</th>
+      <th>Baseline toujours 'Non'</th>
       <td>0.7758</td>
+      <td>0.0000</td>
       <td>0.0000</td>
       <td>0.0000</td>
       <td>NaN</td>
     </tr>
     <tr>
-      <th>Régression Logistique</th>
+      <th>Régression logistique</th>
       <td>0.8494</td>
+      <td>0.7337</td>
       <td>0.5151</td>
       <td>0.6053</td>
       <td>0.8730</td>
     </tr>
     <tr>
-      <th>Random Forest</th>
+      <th>Régression logistique (balanced)</th>
+      <td>0.7955</td>
+      <td>0.5299</td>
+      <td>0.7795</td>
+      <td>0.6309</td>
+      <td>0.8737</td>
+    </tr>
+    <tr>
+      <th>Forêt aléatoire</th>
       <td>0.8561</td>
+      <td>0.7820</td>
       <td>0.4963</td>
       <td>0.6072</td>
       <td>0.8887</td>
     </tr>
     <tr>
-      <th>Rég. Log. (balanced)</th>
-      <td>0.7955</td>
-      <td>0.7795</td>
-      <td>0.6309</td>
-      <td>0.8737</td>
+      <th>Gradient boosting</th>
+      <td>0.8575</td>
+      <td>0.7570</td>
+      <td>0.5366</td>
+      <td>0.6281</td>
+      <td>0.8907</td>
     </tr>
   </tbody>
 </table>
@@ -1768,20 +1062,203 @@ compare
 
 
 
-## 4. Conclusions & pistes MLOps
+Le tableau résume l'arbitrage. Les trois modèles « bruts » se tiennent entre 0,85 et 0,86
+d'accuracy pour un rappel de 0,50 à 0,54 — la baseline « toujours Non », elle, affiche 0,776
+d'accuracy avec un rappel nul, ce qui rappelle à quel point l'accuracy seule est trompeuse ici.
 
-**Synthèse data.**
-- Dataset propre dans l'ensemble (0 doublon), ~145 k lignes / 49 stations / ~10 ans.
-- Cible **déséquilibrée** (~22 % de pluie) ⇒ piloter sur recall/F1 de la classe « pluie », pas l'accuracy.
-- Prédicteurs clés cohérents physiquement : `Sunshine`, `Humidity3pm`, `Cloud3pm`, `Pressure`, plus station & saison.
-- Les deux modèles atteignent ~0,85 d'accuracy / ~0,87–0,88 de ROC-AUC mais **ratent ~½ des jours de pluie** ;
-  `class_weight="balanced"` remonte nettement le recall (au prix de l'accuracy) — arbitrage métier à trancher.
+La variante `balanced` prend le problème à l'envers : rappel à 0,78, mais l'accuracy tombe à
+0,80 et la précision à 0,53, autrement dit près d'une alerte sur deux est fausse. Aucune de ces
+deux positions n'est bonne dans l'absolu ; tout dépend du coût respectif d'une pluie manquée et
+d'une fausse alerte.
 
-**Améliorations modèle.** gérer le déséquilibre (class weights / SMOTE / ajustement du seuil de décision),
-feature engineering temporel (saison cyclique, retards), gestion fine de la forte missingness de `Sunshine`/`Cloud`
-(indicateurs de manquant), validation **temporelle** (éviter de prédire le passé avec le futur), tuning (XGBoost/LightGBM).
+## 3. Courbes ROC et précision-rappel
 
-**Vers le MLOps (roadmap projet).** ce notebook est le brouillon ; les étapes suivantes consistent à :
-1. extraire ces traitements en scripts versionnés (`process.py`, `train.py`, `evaluate.py`) ;
-2. tracer chaque entraînement avec **MLflow** (params, métriques, artefacts) ;
-3. versionner données & modèles (**DVC**) ; 4. exposer une **API d'inférence** ; 5. conteneuriser (Docker Compose).
+La courbe ROC est flatteuse sur les classes déséquilibrées parce que les vrais négatifs, très
+nombreux, dominent le calcul. La courbe précision-rappel décrit mieux ce qui nous intéresse ici :
+la capacité à retrouver les 22 % de jours pluvieux.
+
+
+```python
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 5))
+
+modeles = [("Régression logistique", proba_lr),
+           ("Forêt aléatoire", proba_rf),
+           ("Gradient boosting", proba_hgb)]
+
+for nom, proba in modeles:
+    fpr, tpr, _ = roc_curve(y_test, proba)
+    ax1.plot(fpr, tpr, lw=1.6, label=f"{nom} (AUC {roc_auc_score(y_test, proba):.3f})")
+ax1.plot([0, 1], [0, 1], "k--", lw=0.8)
+ax1.set_xlabel("Taux de faux positifs"); ax1.set_ylabel("Taux de vrais positifs")
+ax1.set_title("Courbe ROC"); ax1.legend(loc="lower right", fontsize=9)
+
+for nom, proba in modeles:
+    prec, rec, _ = precision_recall_curve(y_test, proba)
+    ax2.plot(rec, prec, lw=1.6, label=f"{nom} (AP {average_precision_score(y_test, proba):.3f})")
+ax2.axhline(y_test.mean(), color="k", ls="--", lw=0.8,
+            label=f"hasard ({100*y_test.mean():.0f}% de pluie)")
+ax2.set_xlabel("Rappel"); ax2.set_ylabel("Précision")
+ax2.set_title("Courbe précision-rappel"); ax2.legend(fontsize=9)
+
+plt.tight_layout(); plt.show()
+```
+
+
+    
+![png](03_modelisation_files/03_modelisation_22_0.png)
+    
+
+
+Les trois courbes ROC sont proches et toutes très au-dessus de la diagonale. La lecture
+précision-rappel est plus sévère et plus utile : la précision décroche à partir d'un rappel
+d'environ 0,7, ce qui donne un ordre de grandeur du compromis atteignable.
+
+## 4. Le seuil de décision
+
+`predict()` applique un seuil de 0,5 sur la probabilité. Ce choix n'a rien d'évident : il
+maximise à peu près l'accuracy, or l'accuracy n'est pas le bon critère sur une cible à 22 %.
+Déplacer le seuil ne change pas le modèle, seulement le point de fonctionnement.
+
+C'est ce que pilote la variable `DECISION_THRESHOLD` de l'API en production.
+
+
+```python
+prec, rec, thr = precision_recall_curve(y_test, proba_hgb)
+prec, rec = prec[:-1], rec[:-1]          # alignes sur thr
+f1 = 2 * prec * rec / (prec + rec + 1e-12)
+
+i_f1 = int(np.nanargmax(f1))
+seuil_f1 = thr[i_f1]
+
+cible = 0.70
+possibles = np.where(rec >= cible)[0]
+seuil_r70 = thr[possibles.max()] if len(possibles) else np.nan
+
+fig, ax = plt.subplots(figsize=(9, 5))
+ax.plot(thr, prec, label="précision (pluie)")
+ax.plot(thr, rec, label="rappel (pluie)")
+ax.plot(thr, f1, label="F1 (pluie)", lw=2)
+ax.axvline(0.5, color="grey", ls=":", label="seuil par défaut (0,5)")
+ax.axvline(seuil_f1, color="C3", ls="--", label=f"F1 maximal ({seuil_f1:.2f})")
+ax.axvline(seuil_r70, color="C2", ls="--", label=f"rappel {cible:.0%} ({seuil_r70:.2f})")
+ax.set_xlabel("seuil de décision"); ax.set_ylabel("score")
+ax.set_title("Effet du seuil — gradient boosting")
+ax.legend(fontsize=9); plt.tight_layout(); plt.show()
+
+recap = pd.DataFrame([
+    {"Seuil": 0.5, "Précision": precision_score(y_test, proba_hgb >= 0.5),
+     "Rappel": recall_score(y_test, proba_hgb >= 0.5), "F1": f1_score(y_test, proba_hgb >= 0.5)},
+    {"Seuil": round(float(seuil_f1), 3), "Précision": precision_score(y_test, proba_hgb >= seuil_f1),
+     "Rappel": recall_score(y_test, proba_hgb >= seuil_f1), "F1": f1_score(y_test, proba_hgb >= seuil_f1)},
+    {"Seuil": round(float(seuil_r70), 3), "Précision": precision_score(y_test, proba_hgb >= seuil_r70),
+     "Rappel": recall_score(y_test, proba_hgb >= seuil_r70), "F1": f1_score(y_test, proba_hgb >= seuil_r70)},
+]).round(4).set_index("Seuil")
+recap
+```
+
+
+    
+![png](03_modelisation_files/03_modelisation_25_0.png)
+    
+
+
+
+
+
+<div>
+<style scoped>
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+</style>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>Précision</th>
+      <th>Rappel</th>
+      <th>F1</th>
+    </tr>
+    <tr>
+      <th>Seuil</th>
+      <th></th>
+      <th></th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>0.500</th>
+      <td>0.7570</td>
+      <td>0.5366</td>
+      <td>0.6281</td>
+    </tr>
+    <tr>
+      <th>0.320</th>
+      <td>0.6359</td>
+      <td>0.7101</td>
+      <td>0.6710</td>
+    </tr>
+    <tr>
+      <th>0.328</th>
+      <td>0.6402</td>
+      <td>0.7001</td>
+      <td>0.6688</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+
+
+Descendre le seuil de 0,50 à 0,32 fait passer le rappel de 0,54 à 0,71, en cédant douze points
+de précision (0,76 → 0,64). Le F1 y gagne quatre points. En clair : on rattrape un tiers des
+jours de pluie qu'on manquait, au prix de fausses alertes plus fréquentes.
+
+Les deux seuils calculés ici, celui qui maximise le F1 (0,320) et celui qui vise un rappel de
+0,70 (0,328), tombent presque au même endroit — ce n'est pas toujours le cas, mais ça donne une
+zone de réglage cohérente.
+
+Trancher pour de bon demanderait une matrice de coût, qu'on n'a pas. Pour une prévision météo
+grand public, manquer une pluie est plus gênant qu'annoncer une pluie qui ne tombe pas, ce qui
+plaide pour un seuil bas. C'est cette valeur qu'on proposerait comme `DECISION_THRESHOLD` à
+l'API, sachant qu'elle est estimée sur le test et mériterait d'être confirmée en validation
+croisée.
+
+## 5. Conclusions
+
+Sur les données. Dataset propre (aucun doublon), 142 193 observations exploitables réparties sur
+49 stations et dix ans. La cible est déséquilibrée à 22 %, ce qui disqualifie l'accuracy comme
+critère unique. Les prédicteurs les plus utiles sont cohérents avec la physique : humidité de
+l'après-midi, pression, ensoleillement, nébulosité.
+
+Sur les modèles. Les trois familles testées se tiennent (0,85 à 0,86 d'accuracy, ROC-AUC de 0,873
+à 0,891), le gradient boosting arrivant en tête sur presque tous les critères et pour un temps
+d'entraînement plus court que la forêt. Le rappel brut reste autour de 0,54, ce qui est
+insuffisant pour un usage réel.
+
+Le vrai levier n'est pas le choix du modèle mais le seuil : à modèle constant, passer de 0,50 à
+0,32 gagne dix-sept points de rappel, quand l'écart entre le meilleur et le pire des trois
+modèles n'en vaut que quatre. Comparer des modèles sans regarder leur point de fonctionnement
+revient à comparer des réglages arbitraires.
+
+Limites. Les seuils sont estimés sur le jeu de test, ce qui est optimiste — une validation
+croisée serait plus rigoureuse. Le découpage train/test est aléatoire alors que les données sont
+temporelles : un découpage chronologique serait plus fidèle à l'usage réel, où l'on prédit
+l'avenir à partir du passé.
+
+Pistes non explorées faute de temps : saisonnalité en variable cyclique plutôt qu'en one-hot,
+variables décalées (météo de la veille), et un modèle par région plutôt qu'un modèle global —
+les 49 stations ont des régimes très différents, de 7 % de jours pluvieux à Uluru à 37 % à
+Portland.
+
+Côté MLOps, la suite est dans `App/` : ce pipeline est repris dans `src/train.py`, suivi dans
+MLflow, et servi par une API FastAPI qui expose le seuil en variable d'environnement.

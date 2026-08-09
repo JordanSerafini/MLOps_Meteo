@@ -4,36 +4,35 @@ Tous les champs météo sont optionnels : un champ absent devient NaN côté mod
 et est imputé par le Pipeline (median / most_frequent). Les noms correspondent
 EXACTEMENT aux colonnes d'entraînement.
 """
-from typing import Optional
 
 from pydantic import BaseModel, Field
 
 
 class WeatherFeatures(BaseModel):
     # Catégorielles
-    Location: Optional[str] = None
-    WindGustDir: Optional[str] = None
-    WindDir9am: Optional[str] = None
-    WindDir3pm: Optional[str] = None
-    RainToday: Optional[str] = None
-    Month: Optional[int] = Field(default=None, ge=1, le=12)
+    Location: str | None = None
+    WindGustDir: str | None = None
+    WindDir9am: str | None = None
+    WindDir3pm: str | None = None
+    RainToday: str | None = None
+    Month: int | None = Field(default=None, ge=1, le=12)
     # Numériques
-    MinTemp: Optional[float] = None
-    MaxTemp: Optional[float] = None
-    Rainfall: Optional[float] = None
-    Evaporation: Optional[float] = None
-    Sunshine: Optional[float] = None
-    WindGustSpeed: Optional[float] = None
-    WindSpeed9am: Optional[float] = None
-    WindSpeed3pm: Optional[float] = None
-    Humidity9am: Optional[float] = None
-    Humidity3pm: Optional[float] = None
-    Pressure9am: Optional[float] = None
-    Pressure3pm: Optional[float] = None
-    Cloud9am: Optional[float] = None
-    Cloud3pm: Optional[float] = None
-    Temp9am: Optional[float] = None
-    Temp3pm: Optional[float] = None
+    MinTemp: float | None = None
+    MaxTemp: float | None = None
+    Rainfall: float | None = None
+    Evaporation: float | None = None
+    Sunshine: float | None = None
+    WindGustSpeed: float | None = None
+    WindSpeed9am: float | None = None
+    WindSpeed3pm: float | None = None
+    Humidity9am: float | None = None
+    Humidity3pm: float | None = None
+    Pressure9am: float | None = None
+    Pressure3pm: float | None = None
+    Cloud9am: float | None = None
+    Cloud3pm: float | None = None
+    Temp9am: float | None = None
+    Temp3pm: float | None = None
 
     model_config = {
         "json_schema_extra": {
@@ -50,4 +49,4 @@ class PredictionOut(BaseModel):
     rain_tomorrow: bool
     probability: float = Field(description="probabilité de pluie demain [0-1]")
     threshold: float = Field(default=0.5, description="seuil de décision appliqué")
-    model_version: Optional[str] = None
+    model_version: str | None = None
