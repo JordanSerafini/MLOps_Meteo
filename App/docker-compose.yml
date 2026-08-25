@@ -91,6 +91,8 @@ services:
     depends_on:
       - api
     networks: [mlops]
+    volumes:
+      - ./App/ci_metrics.json:/app/ci_metrics.json:ro
 
   # --- Monitoring : collecte des métriques exposées par l'API sur /metrics ---
   prometheus:
