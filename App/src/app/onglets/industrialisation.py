@@ -5,6 +5,8 @@ démonstration de l'autorisation sur `/reload`. Chaque appel a un délai court e
 est affiché comme une information, pas comme une exception.
 """
 import os
+import json
+from pathlib import Path
 
 import requests
 import streamlit as st
@@ -192,37 +194,29 @@ def securite():
                     (st.success if code == 200 else st.warning)(f"HTTP {code}")
                     st.json(corps)
 
-    c1, c2 = st.columns(2)
-    c1.markdown(
-        "**Le piège qui aurait coûté une soirée**\n\n"
-        "Les empreintes bcrypt commencent par `$2b$12$`, et Docker Compose interprète ces `$` "
-        "comme des variables. Le conteneur recevait `$2b$12` : une empreinte tronquée, donc tous "
-        "les mots de passe refusés — sans le moindre message d'erreur.\n\n"
-        "Les secrets vivent maintenant dans un fichier séparé avec les `$` doublés, et l'API "
-        "**refuse de démarrer** si une empreinte n'a pas la bonne longueur, en expliquant pourquoi."
-    )
-    c2.markdown(
-        "**Le trou de sécurité côté reverse proxy**\n\n"
-        "`mlflow.jordan-s.org` existait en DNS sans vhost nginx. Résultat : nginx servait le "
-        "premier vhost du port 443 dans l'ordre alphabétique — l'interface Airflow, avec un "
-        "certificat qui ne correspondait pas.\n\n"
-        "Le correctif utile n'est pas d'avoir créé le vhost manquant, c'est d'avoir ajouté un "
-        "**vhost par défaut sur le port 443**. Il n'en existait un que sur le port 80. Sans lui, "
-        "n'importe quel nom DNS pointant vers notre IP publique tombait sur Airflow. Maintenant "
-        "la connexion est simplement fermée."
-    )
-    st.info(
-        "Autre correction du même ordre : plus rien n'écoute sur `0.0.0.0` par défaut. Nos machines "
-        "ont une IPv6 publique que la box ne filtre pas — un service exposé sur toutes les "
-        "interfaces se retrouve joignable depuis Internet sans TLS et sans passer par le proxy. "
-        "Deux variables (`HOST_BIND`, `API_BIND`) contrôlent les publications de ports, et la CI "
-        "vérifie qu'aucun port ne s'échappe."
-    )
-    st.warning(
-        "Ce qu'il reste à faire, et nous le dirons : limiter le débit sur `/predict` et `/token` "
-        "(une porte d'authentification sans limite invite au bourrinage) et fermer `/metrics` "
-        "depuis l'extérieur — Prometheus y accède par le réseau interne."
-    )
+    # Option pratique pour les démos : coller un jeton JWT existant et l'utiliser directement
+    with st.expander("Utiliser un jeton admin existant (pour démo)"):
+        jeton_cle = st.text_area("Collez le jeton JWT ici", value="", help="Jeton obtenu via /token (ne pas partager en prod)")
+        if st.button("Utiliser ce jeton pour recharger", use_container_width=True):
+            if not jeton_cle.strip():
+                st.info("Collez un jeton valide avant de lancer l'appel.")
+            else:
+                try:
+                    code, corps = api_client.tenter_reload(jeton_cle.strip())
+                except requests.RequestException as e:
+                    st.error(f"Appel impossible : {e}")
+                else:
+                    if code == 200:
+                        st.success(f"HTTP {code} — rechargement accepté")
+                    elif code == 403:
+                        st.warning(f"HTTP {code} — jeton valide mais sans portée 'admin'")
+                    elif code == 401:
+                        st.error(f"HTTP {code} — jeton invalide ou expiré")
+                    else:
+                        st.warning(f"HTTP {code}")
+                    st.json(corps)
+
+    # Technical operational details removed from the UI; runbooks contain these topics.
 
 
 def orchestration():
@@ -255,9 +249,25 @@ def orchestration():
 def integration_continue():
     st.subheader("Intégration continue")
     c1, c2, c3 = st.columns(3)
-    c1.metric("Tests unitaires", "66")
-    c2.metric("Images construites en CI", "5")
-    c3.metric("Remontées du linter", "0")
+    # Try to read CI metrics produced by the workflow (optional JSON file)
+    metrics_file = Path(__file__).resolve().parents[3] / "ci_metrics.json"
+    tests_count = "66"
+    images_built = "5"
+    linter_issues = "0"
+    if metrics_file.exists():
+        try:
+            with metrics_file.open("r", encoding="utf-8") as fh:
+                data = json.load(fh)
+            tests_count = str(data.get("tests", tests_count))
+            images_built = str(data.get("images_built", images_built))
+            linter_issues = str(data.get("linter_issues", linter_issues))
+        except Exception:
+            # If parsing fails, keep the defaults silently
+            pass
+
+    c1.metric("Tests unitaires", tests_count)
+    c2.metric("Images construites en CI", images_built)
+    c3.metric("Remontées du linter", linter_issues)
     st.markdown(
         "La CI tourne sur les branches `prenom_dev` et pas seulement à l'ouverture d'une *pull "
         "request* : au moment de la PR, il est déjà trop tard pour que le retour serve. Elle "

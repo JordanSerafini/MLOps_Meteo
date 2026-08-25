@@ -55,7 +55,7 @@ PARTIES = [
         "cle": "industrialisation",
         "titre": "3 · Industrialisation",
         "intitule": "Microservices, orchestration, CI et sécurisation",
-        "presentateur": "prénom 3",
+        "presentateur": "Rodrigue",
         "minutes": 4,
         "module": industrialisation,
         "resume": "Neuf services, une responsabilité chacun, un reverse proxy et une API "
