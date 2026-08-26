@@ -48,8 +48,8 @@ PARTIES = [
         "presentateur": "Abdelmalek",
         "minutes": 4,
         "module": modelisation,
-        "resume": "Quatre modèles se tiennent en quatre points ; le seuil de décision en vaut "
-                  "dix-sept.",
+        "resume": "Quatre modèles comparés, un seuil qui pèse plus que le choix du modèle, "
+                  "et le tracking MLflow / DVC qui assure la traçabilité.",
     },
     {
         "cle": "industrialisation",
