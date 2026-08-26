@@ -18,7 +18,7 @@ import streamlit as st
 import api_client
 from onglets import donnees, industrialisation, modelisation, monitoring, prediction
 
-# À compléter avec vos prénoms : le nom s'affiche en tête de la partie et dans le plan.
+# Le prénom s'affiche en tête de la partie et dans le plan de la barre latérale.
 # La durée est indicative — 20 minutes à quatre, en gardant de la marge pour les questions.
 PARTIES = [
     {
@@ -35,7 +35,7 @@ PARTIES = [
         "cle": "donnees",
         "titre": "1 · Données",
         "intitule": "Exploration, cible déséquilibrée et préprocessing",
-        "presentateur": "prénom 1",
+        "presentateur": "Karine",
         "minutes": 4,
         "module": donnees,
         "resume": "145 460 relevés, 49 stations, 22 % de jours de pluie : pourquoi l'accuracy est "
@@ -45,7 +45,7 @@ PARTIES = [
         "cle": "modelisation",
         "titre": "2 · Modélisation",
         "intitule": "Modèles, seuil de décision, MLflow et DVC",
-        "presentateur": "prénom 2",
+        "presentateur": "Abdelmalek",
         "minutes": 4,
         "module": modelisation,
         "resume": "Quatre modèles se tiennent en quatre points ; le seuil de décision en vaut "
