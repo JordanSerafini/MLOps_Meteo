@@ -11,6 +11,7 @@ from pathlib import Path
 import streamlit as st
 
 DOSSIER = Path(__file__).resolve().parent / "artefacts"
+CAPTURES = DOSSIER / "captures"
 
 
 @st.cache_data(show_spinner=False)
@@ -20,6 +21,18 @@ def charger(nom):
     if not chemin.exists():
         return None
     return json.loads(chemin.read_text(encoding="utf-8"))
+
+
+def capture(nom):
+    """Chemin de artefacts/captures/<nom>.png, ou None si la capture est absente.
+
+    Les captures sont des relevés d'interfaces qui ne tournent pas en production sur la VM
+    (Grafana, Prometheus, Alertmanager appartiennent au profil `monitoring`, lancé en local).
+    Elles sont figées et versionnées pour la même raison que les JSON : une démonstration qui
+    dépend d'un service à démarrer est une démonstration qui tombe le jour de l'oral.
+    """
+    chemin = CAPTURES / f"{nom}.png"
+    return str(chemin) if chemin.exists() else None
 
 
 def signaler_absent(nom):
