@@ -166,10 +166,10 @@ def suivi_mlflow():
 
     # Métriques visuelles
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("🧪 Expériences trackées", "4 modèles")
-    c2.metric("📊 Métriques par run", "6")
-    c3.metric("📦 Registry", "rain-australia")
-    c4.metric("🏷️ Alias de production", "champion")
+    c1.metric("Expériences trackées", "4 modèles")
+    c2.metric("Métriques par run", "4")
+    c3.metric("Registry", "rain-australia")
+    c4.metric("Alias de production", "champion")
 
     st.markdown("")
 
@@ -181,8 +181,9 @@ def suivi_mlflow():
     with g2:
         st.markdown("**Ce que chaque run enregistre**")
         st.markdown(
-            "- **Paramètres** : type de modèle, nombre de features, taille du train\n"
-            "- **Métriques** : accuracy, rappel, F1, ROC-AUC, seuils recommandés\n"
+            "- **Paramètres** : type de modèle, nombre de features, taille du train, "
+            "seuils recommandés\n"
+            "- **Métriques** : accuracy, rappel (pluie), F1 (pluie), ROC-AUC\n"
             "- **Artefact** : le `Pipeline` sklearn complet (préprocessing + modèle)\n"
             "- **Signature** : schéma d'entrée/sortie pour validation automatique"
         )
@@ -198,16 +199,16 @@ def versionnement_dvc():
     st.subheader("DVC — Versionnement des données")
 
     c1, c2, c3 = st.columns(3)
-    c1.metric("📁 Fichier versionné", "weatherAUS.csv")
-    c2.metric("📏 Taille", "145 460 lignes")
-    c3.metric("☁️ Remote", "DagsHub")
+    c1.metric("Fichier versionné", "weatherAUS.csv")
+    c2.metric("Taille", "145 460 lignes")
+    c3.metric("Remote", "DagsHub")
 
     g1, g2 = st.columns(2)
     with g1:
         st.markdown("**Pourquoi DVC ?**")
         st.markdown(
             "Le CSV est trop volumineux pour git. DVC versionne son **empreinte MD5** "
-            "dans `Data/weatherAUS.csv.dvc` (103 octets dans git), le fichier réel vit "
+            "dans `Data/weatherAUS.csv.dvc` (98 octets dans git), le fichier réel vit "
             "sur le remote DagsHub."
         )
         st.code("dvc pull    # reconstruit le jeu de données exact d'un commit", language="bash")
