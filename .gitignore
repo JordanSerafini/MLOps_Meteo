@@ -1,6 +1,9 @@
 # --- Perso (local only) ---
 /Perso
 
+# --- Repères d'accès (local only : IP internes, procédures SSH) ---
+/Reperes
+
 # --- Environnements virtuels ---
 .venv/
 venv/
