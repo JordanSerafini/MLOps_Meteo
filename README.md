@@ -248,6 +248,7 @@ reverse proxy.
 
 ## L'équipe
 
-Jordan, Abdelmalek, Rodrigue et Karine. Chacun a travaillé sur une phase du projet et la présente
-lors de la soutenance. Le développement s'est fait sur des branches séparées, une par personne,
-fusionnées dans `master` par pull request.
+Karine Bennacer, Abdelmalek Belahbib, Rodrigue Vodounon et Jordan Serafini.
+
+Chacun a travaillé sur une phase du projet et la présente lors de la soutenance. Le développement
+s'est fait sur des branches séparées, une par personne, fusionnées dans `master` par pull request.

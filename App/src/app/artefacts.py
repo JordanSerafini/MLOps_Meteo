@@ -2,7 +2,7 @@
 
 Les fichiers de ce dossier sont produits par `python App/scripts/exporter_artefacts.py`
 et versionnés. Le conteneur Streamlit n'a ni scikit-learn ni le CSV : il lit, il n'entraîne
-pas. Un artefact manquant n'est pas une erreur fatale — l'onglet le signale et le reste de
+pas. Un artefact manquant n'est pas une erreur fatale : l'onglet le signale et le reste de
 l'application continue de fonctionner.
 """
 import json

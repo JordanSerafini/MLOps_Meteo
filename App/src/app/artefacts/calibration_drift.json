@@ -8,7 +8,7 @@
     "n_observations": 400,
     "seuil_initial": 0.3,
     "part_derive": 0.333,
-    "commentaire": "trafic normal tiré du jeu d'entraînement lui-même : 3 colonnes sur 9 déclarées en dérive, soit 33 % — au-dessus du seuil de déclenchement de 0,30 choisi au feeling",
+    "commentaire": "trafic normal tiré du jeu d'entraînement lui-même : 3 colonnes sur 9 déclarées en dérive, soit 33 %, au-dessus du seuil de déclenchement de 0,30 choisi au feeling",
     "colonnes": [
       {"colonne": "Pressure3pm", "distance": 0.12, "seuil": 0.1, "derive": true},
       {"colonne": "WindGustSpeed", "distance": 0.105, "seuil": 0.1, "derive": true},
@@ -48,6 +48,6 @@
     {"nom": "TropDErreursServeur", "declencheur": "plus de 5 % de réponses en erreur", "delai": "5 min", "severite": "critique"},
     {"nom": "LatenceDegradee", "declencheur": "95e centile des prédictions au-delà d'une seconde", "delai": "10 min", "severite": "avertissement"},
     {"nom": "DeriveDetectee", "declencheur": "le dernier job conclut à une dérive", "delai": "5 min", "severite": "avertissement"},
-    {"nom": "JobDeriveMuet", "declencheur": "plus d'exécution du job de dérive depuis 48 h", "delai": "—", "severite": "avertissement"}
+    {"nom": "JobDeriveMuet", "declencheur": "plus d'exécution du job de dérive depuis 48 h", "delai": "sans objet", "severite": "avertissement"}
   ]
 }

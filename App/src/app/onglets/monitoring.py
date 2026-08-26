@@ -1,8 +1,8 @@
-"""Partie 4 — Monitoring, détection de dérive et maintenance (phase 4).
+"""Partie 4 : monitoring, détection de dérive et maintenance (phase 4).
 
 Support projeté pendant un passage de cinq minutes. Règle de construction : par section, un
 titre qui porte le message, un visuel, et au plus une ligne de légende. Rien de ce qui est
-dit à l'oral n'est écrit ici — le jury regarde, il ne lit pas.
+dit à l'oral n'est écrit ici : le jury regarde, il ne lit pas.
 
 Le plan suit les trois points d'attention du cadrage de la phase 4 : santé du système,
 qualité des données, performance du modèle. Les chiffres viennent de
@@ -17,7 +17,7 @@ import artefacts
 from formats import nb, pct
 
 # Le flux d'observabilité, et lui seul : l'architecture générale des services est présentée
-# dans la partie 3. Disposition verticale — Streamlit contraint la largeur, pas la hauteur.
+# dans la partie 3. Disposition verticale, car Streamlit contraint la largeur.
 FLUX = """
 digraph observabilite {
   rankdir=TB;
@@ -26,19 +26,19 @@ digraph observabilite {
         color="#bbbbbb", margin="0.22,0.13"];
   edge [fontname="Helvetica", fontsize=11, color="#777777"];
 
-  api  [label="API FastAPI — POST /predict", fillcolor="#cfe2ff"];
+  api  [label="API FastAPI : POST /predict", fillcolor="#cfe2ff"];
 
   met  [label="GET /metrics\\ndébit, latence, codes HTTP,\\ncompteur de décisions", fillcolor="#cfe2ff"];
   jrn  [label="journal JSONL\\nune ligne par prédiction", fillcolor="#cfe2ff"];
   ref  [label="reference.csv\\néchantillon figé, versionné", fillcolor="#fff3cd"];
 
-  job  [label="job dérive — Evidently\\nconteneur éphémère", fillcolor="#f8d7da"];
+  job  [label="job dérive Evidently\\nconteneur éphémère", fillcolor="#f8d7da"];
   push [label="Pushgateway", fillcolor="#f8d7da"];
   prom [label="Prometheus\\n+ 6 règles d'alerte", fillcolor="#f8d7da"];
 
   graf [label="Grafana\\n2 tableaux de bord provisionnés", fillcolor="#d1e7dd"];
   am   [label="Alertmanager → webhook", fillcolor="#d1e7dd"];
-  dag  [label="DAG drift_check — chaque matin 6 h", fillcolor="#e2d9f3"];
+  dag  [label="DAG drift_check, chaque matin 6 h", fillcolor="#e2d9f3"];
 
   {rank=same; met; jrn; ref;}
   {rank=same; push; dag;}
@@ -99,9 +99,9 @@ def quoi_surveiller():
     schema, texte = st.columns([3, 2])
     schema.graphviz_chart(FLUX)
     texte.markdown(
-        "- **santé du système** — `/metrics`, scruté toutes les 15 s\n"
-        "- **qualité des données** — journal des prédictions contre référence figée\n"
-        "- **performance du modèle** — mesurable seulement le lendemain"
+        "- **santé du système** : `/metrics`, scruté toutes les 15 s\n"
+        "- **qualité des données** : le journal des prédictions contre une référence figée\n"
+        "- **performance du modèle** : mesurable seulement le lendemain"
     )
     texte.caption("Le job de dérive est éphémère, d'où le pushgateway.")
 
