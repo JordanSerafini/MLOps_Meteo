@@ -1,12 +1,13 @@
 """Partie 4 — Monitoring, détection de dérive et maintenance (phase 4).
 
-Support d'un passage de cinq minutes. L'écran porte les schémas, les tableaux et les
-chiffres mesurés ; le reste est dit. Les paragraphes sont donc courts par construction :
-une page qu'on lit à voix haute est une page que le jury lit à notre place.
+Support projeté pendant un passage de cinq minutes. L'écran porte les schémas, les tableaux
+et les chiffres mesurés ; l'explication est dite, pas écrite. Un paragraphe affiché est un
+paragraphe que le jury lit au lieu d'écouter — les commentaires longs vivent donc dans les
+notes de l'orateur, pas ici.
 
-Le cœur est la calibration du seuil de dérive : les tableaux affichés sont les mesures de
-`Docs/CALIBRATION_DRIFT.md`, figées dans `artefacts/calibration_drift.json`. C'est la partie
-du projet où l'on a le plus appris, parce qu'on s'est d'abord trompés.
+Les chiffres affichés sont les mesures de `Docs/CALIBRATION_DRIFT.md`, figées dans
+`artefacts/calibration_drift.json`. C'est la partie du projet où l'on a le plus appris,
+parce qu'on s'est d'abord trompés.
 """
 import altair as alt
 import pandas as pd
@@ -117,41 +118,21 @@ def plan():
 
 def quoi_mesurer():
     st.subheader("Surveiller quoi, quand la vérité terrain arrive demain")
-    st.markdown(
-        "Un modèle de prédiction météo pose un problème que n'ont pas les tableaux de bord "
-        "habituels : **l'exactitude n'est mesurable qu'avec un jour de retard.** Impossible de "
-        "surveiller ce qu'on voudrait surveiller. On suit donc trois choses observables "
-        "immédiatement — la santé du service, la distribution des décisions rendues, et la "
-        "distribution des données reçues."
-    )
     schema, texte = st.columns([3, 2])
     schema.graphviz_chart(FLUX)
     texte.markdown(
-        "**La santé du service**  \n"
-        "Prometheus interroge `/metrics` toutes les quinze secondes : débit, latence par "
-        "centile, taux d'erreur.\n\n"
-        "**Le comportement du modèle**  \n"
-        "Un compteur des décisions et un histogramme des probabilités. Un modèle qui répond "
-        "« pluie » deux fois plus souvent qu'hier est un signal, même sans vérité terrain.\n\n"
-        "**Les données reçues**  \n"
-        "Chaque prédiction est écrite dans un journal JSONL. Ce journal *est* le jeu de données "
-        "courant que le job de dérive compare à la référence d'entraînement.\n\n"
-        "Deux chemins distincts arrivent dans Prometheus, et ce n'est pas un détail : le job de "
-        "dérive est **éphémère**. Prometheus ne peut pas interroger un conteneur déjà terminé, "
-        "d'où le pushgateway qui conserve ses valeurs entre deux exécutions."
+        "**L'exactitude n'est mesurable qu'avec un jour de retard.** On surveille donc trois "
+        "choses observables tout de suite :"
     )
-    texte.info(
-        "Une jauge a été ajoutée à l'API, `rain_model_loaded`. `/health` disait déjà si un "
-        "modèle était chargé, mais Prometheus ne lit pas `/health` : sans cette jauge, "
-        "impossible d'alerter sur une API debout et pourtant incapable de prédire.",
-        icon="🔎",
+    texte.markdown(
+        "- la **santé du service** — `/metrics`, scruté toutes les 15 s\n"
+        "- les **décisions rendues** — compteur et histogramme des probabilités\n"
+        "- les **données reçues** — journal JSONL, une ligne par prédiction"
     )
-    st.caption(
-        "Les deux tableaux de bord Grafana sont des fichiers versionnés, provisionnés au "
-        "démarrage : personne n'a à les refaire à la main, et leurs treize requêtes ont été "
-        "vérifiées une par une comme renvoyant réellement des données. Si l'écriture du journal "
-        "échoue, la prédiction est servie quand même — un problème de journalisation ne doit "
-        "jamais faire tomber le service."
+    texte.caption(
+        "Deux chemins arrivent dans Prometheus : le job de dérive est éphémère, d'où le "
+        "pushgateway. Jauge `rain_model_loaded` ajoutée à l'API — Prometheus ne lit pas "
+        "`/health`."
     )
 
 
@@ -163,12 +144,7 @@ def le_faux_positif():
     essai = donnees["premier_essai"]
     second = donnees["second_essai"]
     st.subheader("Notre première version annonçait une dérive permanente")
-    st.error(
-        f"Sur du trafic strictement normal — {essai['n_observations']} observations tirées du jeu "
-        "d'entraînement lui-même — le job concluait à la dérive et recommandait un "
-        "réentraînement. Autrement dit : un réentraînement en boucle, sur les données d'origine.",
-        icon="🚨",
-    )
+
     c1, c2 = st.columns([2, 3])
     df = pd.DataFrame(essai["colonnes"]).rename(columns={
         "colonne": "Colonne", "distance": "Distance", "seuil": "Seuil de la colonne",
@@ -176,28 +152,27 @@ def le_faux_positif():
     })
     c1.dataframe(df.style.format({c: lambda v: nb(v, 3) for c in ["Distance", "Seuil de la colonne"]}),
                  use_container_width=True, hide_index=True)
-    c2.markdown(
-        "Evidently teste **chaque colonne séparément** — distance de Wasserstein normalisée pour "
-        "les numériques, Jensen-Shannon pour `Location` — avec un seuil par défaut de 0,1. Trois "
-        "colonnes sur neuf dépassaient ce seuil, de très peu : "
-        f"{pct(essai['part_derive'], 0)} des colonnes, quand notre seuil de déclenchement était "
-        f"posé à {nb(essai['seuil_initial'])}, choisi au feeling.\n\n"
-        f"Ce n'était pas de la dérive mais du **bruit d'échantillonnage** : comparer "
-        f"{essai['n_observations']} observations à {ent(donnees['taille_reference'])} produit "
-        "mécaniquement des écarts.\n\n"
-        f"Une seconde erreur aggravait la première : le job acceptait de conclure dès "
-        f"{second['min_samples_initial']} observations. Sur un essai à "
-        f"{second['n_observations']} prédictions, il a annoncé "
-        f"**{pct(second['part_derive'], 0)} de colonnes en dérive** — toujours sur du trafic "
-        "normal.\n\n"
-        "**Une bibliothèque de détection de dérive branchée sans calibration ne détecte pas la "
-        "dérive : elle produit du bruit.** Et un système d'alerte qui crie en permanence est un "
-        "système d'alerte que plus personne ne lit."
+    c1.caption(
+        f"Trafic normal : {essai['n_observations']} observations tirées du jeu d'entraînement "
+        f"lui-même, comparées à une référence de {ent(donnees['taille_reference'])}."
     )
-    st.caption(
-        "Deux erreurs, donc deux réglages à mesurer : la part de colonnes à partir de laquelle on "
-        "parle de dérive, et le nombre minimum d'observations en dessous duquel on refuse de "
-        "conclure."
+
+    c2.markdown("**Deux erreurs, pas une**")
+    m1, m2 = c2.columns(2)
+    m1.metric("Colonnes en dérive", pct(essai["part_derive"], 0),
+              help="3 colonnes sur 9, dépassant le seuil de très peu")
+    m1.caption(f"seuil de déclenchement posé à {nb(essai['seuil_initial'])}, au feeling")
+    m2.metric("Sur un essai plus court", pct(second["part_derive"], 0),
+              help=f"{second['n_observations']} observations")
+    m2.caption(f"le job concluait dès {second['min_samples_initial']} observations")
+    c2.markdown(
+        "Dans les deux cas : **réentraînement recommandé sur les données d'entraînement "
+        "elles-mêmes.** Pas de la dérive, du bruit d'échantillonnage."
+    )
+    c2.info(
+        "Une bibliothèque de détection de dérive branchée sans calibration ne détecte pas la "
+        "dérive : elle produit du bruit.",
+        icon="🚨",
     )
 
 
@@ -208,8 +183,8 @@ def calibration():
     st.subheader("Alors on a mesuré, deux fois")
 
     dist = donnees["distribution"]
-    st.markdown("**Premier réglage — à partir de quelle part de colonnes parle-t-on de dérive ?**")
     c1, c2 = st.columns([3, 2])
+    c1.markdown("**Premier réglage — à partir de quelle part de colonnes parle-t-on de dérive ?**")
     df_dist = pd.DataFrame([
         {"Trafic": "normal", "Minimum": dist["normal"]["min"], "Médiane": dist["normal"]["median"],
          "Maximum": dist["normal"]["max"]},
@@ -221,15 +196,15 @@ def calibration():
                  use_container_width=True, hide_index=True)
     c1.caption(
         f"{dist['n_tirages_par_cas']} tirages par cas, {dist['n_observations']} observations "
-        f"chacun. Part de colonnes déclarées en dérive."
+        "chacun. Part de colonnes déclarées en dérive."
     )
-    c2.markdown(
-        f"Les deux distributions **ne se recouvrent pas** : pire cas normal à "
-        f"{nb(dist['normal']['max'], 3)}, meilleur cas décalé à {nb(dist['decale']['min'], 3)}. "
-        f"N'importe quelle valeur entre {nb(dist['intervalle_valide'][0])} et "
-        f"{nb(dist['intervalle_valide'][1])} sépare correctement les deux situations.\n\n"
-        f"Nous retenons **{nb(donnees['seuil_retenu'])}**, au milieu de l'intervalle. Sur ces "
-        "trente tirages : aucun faux positif, aucun faux négatif."
+    c2.markdown("&nbsp;")
+    c2.metric("Seuil retenu", nb(donnees["seuil_retenu"], 1),
+              help="au milieu de l'intervalle qui sépare les deux cas")
+    c2.caption(
+        f"Les deux distributions ne se recouvrent pas : tout seuil entre "
+        f"{nb(dist['intervalle_valide'][0])} et {nb(dist['intervalle_valide'][1])} sépare les "
+        "deux situations. Aucun faux positif, aucun faux négatif sur trente tirages."
     )
 
     st.markdown("**Second réglage — un seuil ne vaut que pour une taille d'échantillon**")
@@ -265,43 +240,31 @@ def calibration():
 
     gauche, droite = st.columns([3, 2])
     gauche.altair_chart(graphique + seuil + minimum, use_container_width=True)
-    gauche.caption(f"Trait horizontal : seuil de déclenchement retenu "
-                   f"({nb(donnees['seuil_retenu'])}). Trait vertical vert : minimum "
-                   f"d'observations exigé ({donnees['min_samples']}).")
-    droite.dataframe(
-        sensibilite.rename(columns={
-            "n_observations": "Obs.", "normal_max": "Normal (max)",
-            "normal_median": "Normal (méd.)", "decale_min": "Décalé (min)",
-            "exploitable": "Exploitable",
-        }).style.format({c: lambda v: nb(v, 2)
-                         for c in ["Normal (max)", "Normal (méd.)", "Décalé (min)"]}),
-        use_container_width=True, hide_index=True,
+    gauche.caption(
+        f"Trait horizontal : seuil retenu ({nb(donnees['seuil_retenu'], 1)}). Trait vertical "
+        f"vert : minimum d'observations exigé ({donnees['min_samples']}). Sous 200 observations "
+        "les deux courbes se confondent."
     )
-    droite.markdown(
-        "**En dessous de 200 observations, le test répond « dérive » quoi qu'on lui donne** : les "
-        "deux courbes se confondent. La séparation devient franche à 400, où le pire cas normal "
-        "(0,33) reste loin du meilleur cas décalé (0,89)."
-    )
-    st.success(
-        f"D'où `--min-samples {donnees['min_samples']}`. Sous ce volume, le job renvoie "
-        "explicitement `statut: donnees_insuffisantes` et le DAG s'arrête en `skipped`. "
-        "**Mieux vaut une absence de réponse qu'une réponse fausse** — dans un sens comme dans "
-        "l'autre.",
+    droite.markdown("&nbsp;")
+    droite.metric("Minimum d'observations", donnees["min_samples"])
+    droite.success(
+        "Sous ce volume, le job renvoie `donnees_insuffisantes` et le DAG s'arrête en "
+        "`skipped`. Mieux vaut une absence de réponse qu'une réponse fausse.",
         icon="✅",
     )
 
     verif = donnees["verification_finale"]
+    st.markdown("**Vérification après correction**")
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Dérive — trafic normal", pct(verif["normal"]["part_derive"], 0))
     c2.metric("Dérive — trafic Portland", pct(verif["portland"]["part_derive"], 0))
     c3.metric("Taux de pluie prédit — normal", pct(verif["normal"]["taux_pluie_predit"], 0))
     c4.metric("Taux de pluie prédit — Portland", pct(verif["portland"]["taux_pluie_predit"], 0))
     st.caption(
-        f"Vérification après correction, sur {verif['normal']['n']} prédictions de chaque type. "
-        "Le taux de pluie annoncé par le modèle monte de 23 % à 35 %, cohérent avec une station à "
+        f"{verif['normal']['n']} prédictions de chaque type. Portland : "
         f"{pct(donnees['station_decalee']['taux_pluie_pct'], 1, sur_cent=True)} de jours pluvieux "
         f"contre {pct(donnees['station_decalee']['moyenne_dataset_pct'], 1, sur_cent=True)} en "
-        "moyenne."
+        "moyenne sur le jeu de données."
     )
 
 
@@ -310,37 +273,27 @@ def alertes():
     if not donnees:
         return
     st.subheader("Six alertes, dont une qui surveille la surveillance")
-    st.markdown(
-        "Le cadrage demandait un « système d'alertes » et il n'y en avait aucun : le DAG écrivait "
-        "dans les logs Airflow, que personne ne lit. Alertmanager a été ajouté, avec six règles "
-        "versionnées dans `App/monitoring/rules/alerts.yml`."
-    )
+    c1, c2 = st.columns([3, 2])
     df = pd.DataFrame(donnees["alertes"]).rename(columns={
         "nom": "Règle", "declencheur": "Se déclenche quand", "delai": "Délai",
         "severite": "Sévérité",
     })
-    st.dataframe(df[["Règle", "Se déclenche quand", "Délai", "Sévérité"]],
+    c1.dataframe(df[["Règle", "Se déclenche quand", "Délai", "Sévérité"]],
                  use_container_width=True, hide_index=True)
-    c1, c2 = st.columns(2)
-    c1.markdown(
-        "**`JobDeriveMuet` est la règle dont nous sommes le plus contents**\n\n"
-        "Un job de dérive planté laisse ses dernières valeurs en place dans Prometheus. Le "
-        "tableau de bord reste vert, aucun seuil n'est franchi, et le système **paraît sain "
-        "alors que plus personne ne surveille**. Sans cette règle, nous aurions une surveillance "
-        "capable de s'arrêter sans prévenir.\n\n"
-        "Une règle d'inhibition complète l'ensemble : quand l'API est injoignable, les alertes de "
-        "modèle non chargé et de latence sont étouffées. C'est la même panne, une notification "
-        "suffit."
+    c1.caption(
+        "Versionnées dans `App/monitoring/rules/alerts.yml`, plus une règle d'inhibition : "
+        "quand l'API est injoignable, les alertes de modèle non chargé et de latence sont "
+        "étouffées."
     )
     c2.markdown(
-        "**Vérifié, pas seulement configuré**\n\n"
-        "En arrêtant le conteneur de l'API, l'alerte est passée en `firing` au bout de deux "
-        "minutes, a bien été transmise à Alertmanager, et s'est résolue seule au redémarrage. "
-        "L'alerte de dérive s'est déclenchée avec son message complet : « 77.78 % des colonnes "
-        "suivies ont dérivé, au-delà du seuil de 50 % ».\n\n"
-        "La destination est réglée par `ALERT_WEBHOOK_URL` : chacun met la sienne, rien de "
-        "personnel n'est versionné. Sans destination configurée, les alertes restent "
-        "consultables dans l'interface Alertmanager."
+        "**`JobDeriveMuet`**  \n"
+        "Un job de dérive planté laisse ses dernières valeurs dans Prometheus. Le tableau de "
+        "bord reste vert et le système paraît sain, alors que plus personne ne surveille."
+    )
+    c2.success(
+        "Vérifié, pas seulement configuré : conteneur d'API arrêté, `firing` au bout de deux "
+        "minutes, résolu seul au redémarrage.",
+        icon="🔎",
     )
 
 
@@ -349,44 +302,22 @@ def boucle_de_mise_a_jour():
     schema, texte = st.columns([3, 2])
     schema.graphviz_chart(BOUCLE)
     texte.markdown(
-        "Tous les maillons de cette chaîne sont automatisés **sauf un**, et c'est un choix, pas "
-        "un renoncement.\n\n"
-        "Le socket Docker a été retiré du conteneur Airflow au moment du passage en production : "
-        "le lui rendre pour qu'il lance l'entraînement reviendrait à lui donner l'équivalent des "
-        "droits administrateur sur la machine. Un service exposé sur Internet ne doit pas pouvoir "
-        "créer des conteneurs sur son hôte.\n\n"
-        "Et l'entraînement est **déporté par conception** : le serveur n'a ni le jeu de données "
-        "ni l'image d'entraînement, et n'a pas les ressources pour les héberger. Le DAG signale "
-        "donc, et `make deploy-model` exécute."
+        "Tous les maillons sont automatisés **sauf un**, et c'est un choix : rendre le socket "
+        "Docker à Airflow pour qu'il lance l'entraînement donnerait l'équivalent des droits "
+        "administrateur sur la machine à un service exposé sur Internet. L'entraînement est "
+        "d'ailleurs déporté par conception — le serveur n'a ni le jeu de données ni l'image "
+        "d'entraînement."
     )
-    texte.warning(
-        "Pour aller jusqu'au déclenchement automatique, la solution propre serait un "
-        "`docker-socket-proxy` limité à la création d'un seul conteneur, ou un worker Airflow "
-        "dédié sur le poste de dev. C'est écrit dans le DAG lui-même, hors périmètre du projet.",
-        icon="⚠️",
-    )
-    st.markdown(
-        "La feuille de route demandait les mises à jour du modèle **et des composants**. Les "
-        "secondes sont traitées autrement, par la chaîne d'intégration continue :"
-    )
-    st.dataframe(
+    texte.dataframe(
         [
-            {"Ce qui est mis à jour": "le modèle servi",
-             "Déclencheur": "dérive détectée, ou nouvel entraînement",
-             "Mécanisme": "trainer → registry MLflow → alias champion → POST /reload",
+            {"Mis à jour": "le modèle servi", "Mécanisme": "registry MLflow → POST /reload",
              "Automatique": "sauf la décision"},
-            {"Ce qui est mis à jour": "les cinq images Docker",
-             "Déclencheur": "chaque poussée sur une branche prenom_dev",
-             "Mécanisme": "CI GitHub Actions : lint, 74 tests, validation des compose, build des 5 images",
+            {"Mis à jour": "les cinq images", "Mécanisme": "CI à chaque poussée",
              "Automatique": "oui"},
-            {"Ce qui est mis à jour": "les dépendances Python",
-             "Déclencheur": "revue manuelle",
-             "Mécanisme": "versions épinglées dans requirements/*.txt",
-             "Automatique": "non — voir les limites"},
-            {"Ce qui est mis à jour": "les conteneurs après incident",
-             "Déclencheur": "arrêt ou redémarrage de la VM",
-             "Mécanisme": "restart: unless-stopped (Docker Compose)",
-             "Automatique": "oui, vérifié sur un redémarrage réel"},
+            {"Mis à jour": "les dépendances", "Mécanisme": "versions épinglées",
+             "Automatique": "non"},
+            {"Mis à jour": "après incident", "Mécanisme": "restart: unless-stopped",
+             "Automatique": "oui, vérifié"},
         ],
         use_container_width=True, hide_index=True,
     )
@@ -394,28 +325,19 @@ def boucle_de_mise_a_jour():
 
 def limites():
     st.subheader("Ce que cette surveillance ne couvre pas")
-    c1, c2 = st.columns(2)
+    c1, c2, c3 = st.columns(3)
     c1.markdown(
-        "**Sur la détection**\n\n"
-        "- La dérive testée est **géographique**, donc brutale. Une dérive saisonnière, "
-        "progressive, produirait des valeurs intermédiaires et demanderait de suivre une "
-        "tendance plutôt qu'un seuil instantané.\n"
-        "- La calibration vaut pour ces neuf colonnes et cette référence de 5 000 lignes. "
-        "Changer l'une ou l'autre impose de refaire la mesure.\n"
-        "- Le jeu de données s'arrête en 2017 : nous ne pouvons pas valider sur une vraie dérive "
-        "de production. D'où le choix de rejouer une station atypique plutôt que d'inventer des "
-        "données."
+        "**Dérive géographique, donc brutale**  \n"
+        "Une dérive saisonnière demanderait de suivre une tendance, pas un seuil instantané."
     )
     c2.markdown(
-        "**Sur la maintenance**\n\n"
-        "- Aucune mise à jour automatique des dépendances (ni Dependabot ni Renovate). Les "
-        "versions sont épinglées, ce qui protège de la surprise mais pas de la vulnérabilité "
-        "connue.\n"
-        "- La dérive du modèle **par rapport à la réalité** reste hors d'atteinte : mesurer si "
-        "les prédictions étaient justes demanderait de récupérer les relevés du lendemain, ce "
-        "que le projet ne fait pas.\n"
-        "- Les alertes partent vers un webhook. Aucune astreinte, aucune escalade : c'est un "
-        "projet d'école, pas une équipe d'exploitation."
+        "**Pas de mise à jour des dépendances**  \n"
+        "Ni Dependabot ni Renovate : les versions épinglées protègent de la surprise, pas de la "
+        "vulnérabilité connue."
+    )
+    c3.markdown(
+        "**La réalité reste hors d'atteinte**  \n"
+        "Mesurer si les prédictions étaient justes demanderait les relevés du lendemain."
     )
     with st.expander("Reproduire la démonstration en local"):
         st.code(
@@ -423,12 +345,6 @@ def limites():
             "make monitoring-up   # Prometheus, Grafana, Alertmanager, pushgateway\n"
             "make trafic N=500    # 500 prédictions vers l'API\n"
             "make drift           # compare le trafic reçu à la référence d'entraînement\n"
-            "make drift-demo      # injecte du trafic décalé, puis mesure : la dérive se déclenche",
+            "make drift-demo      # injecte du trafic décalé, puis mesure",
             language="bash",
-        )
-        st.markdown(
-            "`make drift-demo` provoque une dérive à la demande. Le job produit trois sorties : "
-            "un rapport HTML détaillé pour l'analyse humaine, un résumé JSON exploitable par le "
-            "DAG, et cinq métriques poussées vers Prometheus. Le tableau de bord Grafana passe "
-            "au rouge et l'alerte remonte dans Alertmanager au bout de cinq minutes."
         )
