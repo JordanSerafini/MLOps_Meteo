@@ -65,7 +65,7 @@ PARTIES = [
         "cle": "monitoring",
         "titre": "4 · Monitoring",
         "intitule": "Métriques, détection de dérive et alertes",
-        "presentateur": "prénom 4",
+        "presentateur": "Jordan",
         "minutes": 5,
         "module": monitoring,
         "resume": "Comment un détecteur de dérive mal calibré nous a annoncé 78 % de dérive sur "

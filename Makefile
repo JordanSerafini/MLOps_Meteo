@@ -121,8 +121,11 @@ monitoring-down:
 	$(COMPOSE) --profile monitoring stop prometheus grafana pushgateway
 
 ## ————— Détection de dérive —————
+# App/.env doit être sourcé ici : le script lit les identifiants dans l'environnement et
+# ne charge aucun fichier lui-même. Sans ça, l'appel échoue sur « Identifiants refusés ».
 trafic:          ## envoie N prédictions à l'API (N=100 par défaut, STATION= pour cibler)
-	$(VENV)/python App/scripts/simuler_trafic.py --n $${N:-100} $${STATION:+--station $$STATION}
+	@set -a; . App/.env; set +a; \
+	 $(VENV)/python App/scripts/simuler_trafic.py --n $${N:-100} $${STATION:+--station $$STATION}
 
 drift:           ## compare le trafic reçu aux données d'entraînement
 	$(COMPOSE) --profile drift run --rm drift
@@ -130,7 +133,8 @@ drift:           ## compare le trafic reçu aux données d'entraînement
 drift-demo:      ## démo : injecte du trafic décalé (Portland) puis mesure la dérive
 	@echo "→ 500 prédictions depuis Portland (37 % de jours pluvieux contre 22 % en moyenne)…"
 	@echo "  (500 = au-dessus du minimum de 400, cf. Docs/CALIBRATION_DRIFT.md)"
-	$(VENV)/python App/scripts/simuler_trafic.py --n 500 --station Portland
+	@set -a; . App/.env; set +a; \
+	 $(VENV)/python App/scripts/simuler_trafic.py --n 500 --station Portland
 	@echo "→ mesure de la dérive…"
 	$(MAKE) drift
 
