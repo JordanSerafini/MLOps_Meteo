@@ -31,65 +31,71 @@ jobs:
         run: pip install -r requirements/test.txt
 
       - name: Lint (ruff)
+        # Deux passes : la première produit le rapport JSON qui alimente le compteur, la
+        # seconde fait échouer le job. Sans elle, le `|| true` rendrait le lint décoratif.
+        # --output-format : --format a été retiré de ruff, la 0.8.6 le refuse.
+        # Le heredoc doit être indenté dans le bloc, sinon le YAML est invalide.
         run: |
-          ruff check src/ scripts/ dags/ --format=json > ruff.json || true
+          ruff check src/ scripts/ dags/ --output-format=json > ruff.json || true
           python - <<'PY'
-import json
-try:
-    with open('ruff.json', 'r', encoding='utf-8') as fh:
-        r = json.load(fh)
-        linter_issues = len(r) if isinstance(r, list) else 0
-except Exception:
-    linter_issues = 0
-print(linter_issues)
-with open('ruff_summary.json','w',encoding='utf-8') as fh:
-    json.dump({'linter_issues': linter_issues}, fh)
-PY
+          import json
+          try:
+              with open('ruff.json', encoding='utf-8') as fh:
+                  rapport = json.load(fh)
+              nb = len(rapport) if isinstance(rapport, list) else 0
+          except Exception:
+              nb = 0
+          print(f'remontées ruff : {nb}')
+          with open('ruff_summary.json', 'w', encoding='utf-8') as fh:
+              json.dump({'linter_issues': nb}, fh)
+          PY
+          ruff check src/ scripts/ dags/
 
       - name: Tests (pytest)
+        # --collect-only affiche « N tests collected in X.XXs » : on extrait le nombre
+        # seul, sinon la durée part avec et le compteur devient inexploitable.
         run: |
-          # collect-only to get the number of collected tests, then run the tests
-          collected=$(pytest src/tests/ --collect-only -q | tail -n1 | sed -E 's/.*\b([0-9]+) items?$/\1/' || true)
-          if [ -z "$collected" ]; then
-            # Fallback: try to parse pytest -q output
-            pytest -q --tb=short | tee pytest_output.txt || true
-            collected=$(grep -Eo 'collected [0-9]+' pytest_output.txt | head -n1 | grep -Eo '[0-9]+' || true)
-          else
-            pytest -q --tb=short || true
-          fi
-          echo "collected=$collected" > pytest_count.txt
+          pytest src/tests/ --collect-only -q \
+            | grep -oE '^[0-9]+ tests? collected' \
+            | grep -oE '^[0-9]+' > pytest_count.txt || echo 0 > pytest_count.txt
+          echo "tests collectés : $(cat pytest_count.txt)"
+          pytest src/tests/ -q --tb=short
 
-      - name: Publish CI partial metrics (artifact)
+      - name: Agréger les métriques du job
         if: always()
         run: |
           python - <<'PY'
-import json, os
-tests = 0
-try:
-    if os.path.exists('pytest_count.txt'):
-        with open('pytest_count.txt') as fh:
-            for l in fh:
-                if l.startswith('collected='):
-                    tests = int(l.split('=',1)[1].strip())
-except Exception:
-    tests = 0
-linter = 0
-try:
-    with open('ruff_summary.json','r',encoding='utf-8') as fh:
-        linter = json.load(fh).get('linter_issues',0)
-except Exception:
-    linter = 0
-data = {'tests': tests, 'linter_issues': linter}
-with open('ci_metrics_partial.json','w',encoding='utf-8') as fh:
-    json.dump(data, fh)
-print('Wrote ci_metrics_partial.json')
-PY
+          import json
+          import pathlib
 
-      - name: Upload CI metrics partial
+          def lire_entier(chemin, defaut=0):
+              try:
+                  return int(pathlib.Path(chemin).read_text().strip())
+              except Exception:
+                  return defaut
+
+          def lire_json(chemin, cle, defaut=0):
+              try:
+                  return int(json.loads(pathlib.Path(chemin).read_text()).get(cle, defaut))
+              except Exception:
+                  return defaut
+
+          donnees = {
+              'tests': lire_entier('pytest_count.txt'),
+              'linter_issues': lire_json('ruff_summary.json', 'linter_issues'),
+          }
+          pathlib.Path('ci_metrics_partial.json').write_text(json.dumps(donnees))
+          print('métriques partielles :', donnees)
+          PY
+
+      - name: Publier les métriques partielles
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ci_metrics_partial
-          path: ci_metrics_partial.json
+          # working-directory ne s'applique qu'aux étapes `run` : le chemin d'une
+          # action part de la racine du dépôt, pas de App/.
+          path: App/ci_metrics_partial.json
 
   compose:
     name: Validation des fichiers compose
@@ -153,56 +159,65 @@ PY
         run: docker compose -f App/docker-compose.yml build ${{ matrix.service }}
 
   publish-metrics:
-    name: Publish CI metrics
+    name: Publier les métriques CI
     runs-on: ubuntu-latest
     needs: [test, build]
+    # Sur une pull request, le jeton est en lecture seule et la branche n'appartient
+    # pas forcément au dépôt : on ne tente le commit que sur un push de branche.
+    if: github.event_name == 'push'
+    permissions:
+      contents: write
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
 
-      - name: Download partial metrics
+      - name: Récupérer les métriques partielles
         uses: actions/download-artifact@v4
         with:
           name: ci_metrics_partial
           path: .
 
-      - name: Aggregate and write App/ci_metrics.json
+      - name: Écrire le fichier de métriques
         run: |
           python - <<'PY'
-import json, os
-partial = {}
-if os.path.exists('ci_metrics_partial.json'):
-    partial = json.load(open('ci_metrics_partial.json','r',encoding='utf-8'))
-images_built = 5
-data = {
-  'tests': int(partial.get('tests',0)),
-  'linter_issues': int(partial.get('linter_issues',0)),
-  'images_built': images_built,
-}
-os.makedirs('App', exist_ok=True)
-with open('App/ci_metrics.json','w',encoding='utf-8') as fh:
-    json.dump(data, fh)
-print('Wrote App/ci_metrics.json:', data)
-PY
+          import json
+          import pathlib
 
-      - name: Commit ci_metrics.json back to branch (best-effort)
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          partiel = {}
+          source = pathlib.Path('ci_metrics_partial.json')
+          if source.exists():
+              partiel = json.loads(source.read_text())
+
+          donnees = {
+              'tests': int(partiel.get('tests', 0)),
+              'linter_issues': int(partiel.get('linter_issues', 0)),
+              # la matrice du job build compte cinq services
+              'images_built': 5,
+          }
+          cible = pathlib.Path('App/src/app/ci_metrics.json')
+          cible.parent.mkdir(parents=True, exist_ok=True)
+          cible.write_text(json.dumps(donnees))
+          print('écrit :', donnees)
+          PY
+
+      - name: Committer le fichier sur la branche
         run: |
-          set -e
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add App/ci_metrics.json || true
+          git add App/src/app/ci_metrics.json
           if git diff --staged --quiet; then
-            echo 'No changes to commit'
+            echo "métriques inchangées, rien à committer"
           else
-            git commit -m "ci: publish ci_metrics.json"
-            git push
+            git commit -m "ci: met à jour les métriques affichées par le Streamlit"
+            git push origin HEAD:${{ github.ref_name }}
           fi
         continue-on-error: true
 
-      - name: Upload final ci_metrics.json artifact (fallback)
+      - name: Publier le fichier en artefact
         uses: actions/upload-artifact@v4
         with:
           name: ci_metrics_final
-          path: App/ci_metrics.json
+          path: App/src/app/ci_metrics.json

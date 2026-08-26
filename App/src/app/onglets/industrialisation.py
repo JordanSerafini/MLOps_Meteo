@@ -4,8 +4,8 @@ Cet onglet est le seul qui interroge l'infrastructure en direct : état des serv
 démonstration de l'autorisation sur `/reload`. Chaque appel a un délai court et son échec
 est affiché comme une information, pas comme une exception.
 """
-import os
 import json
+import os
 from pathlib import Path
 
 import requests
@@ -196,7 +196,8 @@ def securite():
 
     # Option pratique pour les démos : coller un jeton JWT existant et l'utiliser directement
     with st.expander("Utiliser un jeton admin existant (pour démo)"):
-        jeton_cle = st.text_area("Collez le jeton JWT ici", value="", help="Jeton obtenu via /token (ne pas partager en prod)")
+        jeton_cle = st.text_area("Collez le jeton JWT ici", value="",
+                                 help="Jeton obtenu via /token (ne pas partager en prod)")
         if st.button("Utiliser ce jeton pour recharger", use_container_width=True):
             if not jeton_cle.strip():
                 st.info("Collez un jeton valide avant de lancer l'appel.")
@@ -249,30 +250,24 @@ def orchestration():
 def integration_continue():
     st.subheader("Intégration continue")
     c1, c2, c3 = st.columns(3)
-    # Try to read CI metrics produced by the workflow (optional JSON file)
-    metrics_file = Path(__file__).resolve().parents[3] / "ci_metrics.json"
-    tests_count = "66"
-    images_built = "5"
-    linter_issues = "0"
-    if metrics_file.exists():
-        try:
-            with metrics_file.open("r", encoding="utf-8") as fh:
-                data = json.load(fh)
-            tests_count = str(data.get("tests", tests_count))
-            images_built = str(data.get("images_built", images_built))
-            linter_issues = str(data.get("linter_issues", linter_issues))
-        except Exception:
-            # If parsing fails, keep the defaults silently
-            pass
+    # Métriques écrites par la CI dans le dossier de l'application : le Dockerfile copie
+    # src/app/, donc le fichier voyage avec l'image et le chemin est le même en local et
+    # dans le conteneur. Un montage aurait dépendu du répertoire de lancement.
+    fichier = Path(__file__).resolve().parents[1] / "ci_metrics.json"
+    mesures = {"tests": "74", "images_built": "5", "linter_issues": "0"}
+    try:
+        mesures.update({k: str(v) for k, v in json.loads(fichier.read_text()).items()})
+    except (OSError, ValueError):
+        pass  # fichier absent ou illisible : on garde les dernières valeurs connues
 
-    c1.metric("Tests unitaires", tests_count)
-    c2.metric("Images construites en CI", images_built)
-    c3.metric("Remontées du linter", linter_issues)
+    c1.metric("Tests unitaires", mesures["tests"])
+    c2.metric("Images construites en CI", mesures["images_built"])
+    c3.metric("Remontées du linter", mesures["linter_issues"])
     st.markdown(
         "La CI tourne sur les branches `prenom_dev` et pas seulement à l'ouverture d'une *pull "
         "request* : au moment de la PR, il est déjà trop tard pour que le retour serve. Elle "
-        "exécute le linter, les 66 tests, valide les deux fichiers Docker Compose et construit "
-        "les cinq images.\n\n"
+        f"exécute le linter, les {mesures['tests']} tests, valide les deux fichiers Docker "
+        "Compose et construit les cinq images.\n\n"
         "Les tests couvrent le chargement des données, les schémas d'entrée, l'authentification "
         "et les portées, les réponses de l'API et le job de dérive. Le modèle n'est pas "
         "réentraîné en CI : les tests d'API utilisent un modèle factice injecté, ce qui les rend "
