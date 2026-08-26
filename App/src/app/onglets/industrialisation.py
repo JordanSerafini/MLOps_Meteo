@@ -255,13 +255,13 @@ def orchestration():
 def integration_continue():
     st.subheader("Intégration continue")
     c1, c2, c3 = st.columns(3)
-    c1.metric("Tests unitaires", "74")
+    c1.metric("Tests unitaires", "66")
     c2.metric("Images construites en CI", "5")
     c3.metric("Remontées du linter", "0")
     st.markdown(
         "La CI tourne sur les branches `prenom_dev` et pas seulement à l'ouverture d'une *pull "
         "request* : au moment de la PR, il est déjà trop tard pour que le retour serve. Elle "
-        "exécute le linter, les 74 tests, valide les deux fichiers Docker Compose et construit "
+        "exécute le linter, les 66 tests, valide les deux fichiers Docker Compose et construit "
         "les cinq images.\n\n"
         "Les tests couvrent le chargement des données, les schémas d'entrée, l'authentification "
         "et les portées, les réponses de l'API et le job de dérive. Le modèle n'est pas "
