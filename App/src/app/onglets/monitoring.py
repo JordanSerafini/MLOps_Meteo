@@ -16,8 +16,8 @@ import streamlit as st
 import artefacts
 from formats import nb, pct
 
-# Le flux d'observabilité, et lui seul : l'architecture des neuf services est présentée dans
-# la partie 3. Disposition verticale — Streamlit contraint la largeur, pas la hauteur.
+# Le flux d'observabilité, et lui seul : l'architecture générale des services est présentée
+# dans la partie 3. Disposition verticale — Streamlit contraint la largeur, pas la hauteur.
 FLUX = """
 digraph observabilite {
   rankdir=TB;
