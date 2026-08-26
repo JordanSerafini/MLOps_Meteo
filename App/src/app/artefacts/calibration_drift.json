@@ -1,18 +1,26 @@
 {
-  "_source": "Docs/CALIBRATION_DRIFT.md — mesures reproductibles avec `make drift-demo`",
+  "_source": "Docs/CALIBRATION_DRIFT.md pour les mesures (reproductibles avec `make drift-demo`), App/monitoring/rules/alerts.yml pour les noms et sévérités des règles",
   "seuil_retenu": 0.5,
   "min_samples": 400,
   "colonnes_suivies": 9,
   "taille_reference": 5000,
   "premier_essai": {
     "n_observations": 400,
-    "commentaire": "trafic normal tiré du jeu d'entraînement lui-même : 3 colonnes sur 9 déclarées en dérive",
+    "seuil_initial": 0.3,
+    "part_derive": 0.333,
+    "commentaire": "trafic normal tiré du jeu d'entraînement lui-même : 3 colonnes sur 9 déclarées en dérive, soit 33 % — au-dessus du seuil de déclenchement de 0,30 choisi au feeling",
     "colonnes": [
       {"colonne": "Pressure3pm", "distance": 0.12, "seuil": 0.1, "derive": true},
       {"colonne": "WindGustSpeed", "distance": 0.105, "seuil": 0.1, "derive": true},
       {"colonne": "Location", "distance": 0.137, "seuil": 0.1, "derive": true},
       {"colonne": "les six autres", "distance": 0.09, "seuil": 0.1, "derive": false}
     ]
+  },
+  "second_essai": {
+    "min_samples_initial": 30,
+    "n_observations": 120,
+    "part_derive": 0.78,
+    "commentaire": "le job acceptait de conclure dès 30 observations ; sur 120 prédictions réelles de trafic normal il annonçait 78 % de colonnes en dérive"
   },
   "distribution": {
     "n_tirages_par_cas": 15,
@@ -35,11 +43,11 @@
   },
   "station_decalee": {"nom": "Portland", "taux_pluie_pct": 36.55, "moyenne_dataset_pct": 22.42},
   "alertes": [
-    {"nom": "ApiDown", "declencheur": "Prometheus n'arrive plus à interroger l'API", "delai": "2 min"},
-    {"nom": "ModelNotLoaded", "declencheur": "l'API répond mais ne sert aucun modèle", "delai": "5 min"},
-    {"nom": "HighErrorRate", "declencheur": "plus de 5 % de réponses en erreur", "delai": "5 min"},
-    {"nom": "HighLatency", "declencheur": "95e centile des prédictions au-delà d'une seconde", "delai": "10 min"},
-    {"nom": "DriftDetected", "declencheur": "le dernier job conclut à une dérive", "delai": "5 min"},
-    {"nom": "DriftJobStale", "declencheur": "plus d'exécution du job de dérive depuis 48 h", "delai": "—"}
+    {"nom": "ApiInjoignable", "declencheur": "Prometheus n'arrive plus à interroger l'API", "delai": "2 min", "severite": "critique"},
+    {"nom": "ModeleNonCharge", "declencheur": "l'API répond mais ne sert aucun modèle", "delai": "5 min", "severite": "critique"},
+    {"nom": "TropDErreursServeur", "declencheur": "plus de 5 % de réponses en erreur", "delai": "5 min", "severite": "critique"},
+    {"nom": "LatenceDegradee", "declencheur": "95e centile des prédictions au-delà d'une seconde", "delai": "10 min", "severite": "avertissement"},
+    {"nom": "DeriveDetectee", "declencheur": "le dernier job conclut à une dérive", "delai": "5 min", "severite": "avertissement"},
+    {"nom": "JobDeriveMuet", "declencheur": "plus d'exécution du job de dérive depuis 48 h", "delai": "—", "severite": "avertissement"}
   ]
 }

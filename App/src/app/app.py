@@ -18,7 +18,8 @@ import streamlit as st
 import api_client
 from onglets import donnees, industrialisation, modelisation, monitoring, prediction
 
-# À compléter avec vos prénoms : le nom s'affiche en tête de la partie et dans le plan.
+# "presentateur" peut rester vide : l'en-tête et le plan omettent alors la mention, plutôt que
+# d'afficher un nom d'emprunt au vidéoprojecteur.
 # La durée est indicative — 20 minutes à quatre, en gardant de la marge pour les questions.
 PARTIES = [
     {
@@ -35,7 +36,7 @@ PARTIES = [
         "cle": "donnees",
         "titre": "1 · Données",
         "intitule": "Exploration, cible déséquilibrée et préprocessing",
-        "presentateur": "prénom 1",
+        "presentateur": "",
         "minutes": 4,
         "module": donnees,
         "resume": "145 460 relevés, 49 stations, 22 % de jours de pluie : pourquoi l'accuracy est "
@@ -45,7 +46,7 @@ PARTIES = [
         "cle": "modelisation",
         "titre": "2 · Modélisation",
         "intitule": "Modèles, seuil de décision, MLflow et DVC",
-        "presentateur": "prénom 2",
+        "presentateur": "",
         "minutes": 4,
         "module": modelisation,
         "resume": "Quatre modèles se tiennent en quatre points ; le seuil de décision en vaut "
@@ -55,7 +56,7 @@ PARTIES = [
         "cle": "industrialisation",
         "titre": "3 · Industrialisation",
         "intitule": "Microservices, orchestration, CI et sécurisation",
-        "presentateur": "prénom 3",
+        "presentateur": "",
         "minutes": 4,
         "module": industrialisation,
         "resume": "Neuf services, une responsabilité chacun, un reverse proxy et une API "
@@ -65,7 +66,7 @@ PARTIES = [
         "cle": "monitoring",
         "titre": "4 · Monitoring",
         "intitule": "Métriques, détection de dérive et alertes",
-        "presentateur": "prénom 4",
+        "presentateur": "Jordan",
         "minutes": 5,
         "module": monitoring,
         "resume": "Comment un détecteur de dérive mal calibré nous a annoncé 78 % de dérive sur "
@@ -98,17 +99,16 @@ def barre_laterale():
     debut = 0
     for partie in PARTIES:
         fin = debut + partie["minutes"]
-        st.sidebar.markdown(
-            f"`{debut:02d}–{fin:02d}`  **{partie['titre']}** · {partie['presentateur']}"
-        )
+        qui = f" · {partie['presentateur']}" if partie["presentateur"] else ""
+        st.sidebar.markdown(f"`{debut:02d}–{fin:02d}`  **{partie['titre']}**{qui}")
         debut = fin
     st.sidebar.caption(f"{total} minutes de présentation, le reste pour les questions.")
 
 
 def entete(partie):
     st.markdown(f"### {partie['intitule']}")
-    st.caption(f"{partie['titre']} · présenté par {partie['presentateur']} · "
-               f"≈ {partie['minutes']} min — {partie['resume']}")
+    qui = f"présenté par {partie['presentateur']} · " if partie["presentateur"] else ""
+    st.caption(f"{partie['titre']} · {qui}≈ {partie['minutes']} min — {partie['resume']}")
 
 
 def main():
